@@ -139,6 +139,27 @@ Importar `App\Models\AiPrompt` no agente. As regras e a interpolação da norma 
 
 Bibliografia processada por um agente com saída estruturada, respeitando a norma recebida e preservando os campos esperados pela aplicação.
 
+### Resultado da implementação
+
+Etapa 2 concluída em 09/10/2026:
+
+- Criado `app/Ai/Agents/BibliografiaAgent.php`, implementando `Agent` e `HasStructuredOutput` com o trait `Promptable`.
+- A norma é recebida no construtor e `instructions()` retorna integralmente `AiPrompt::systemPrompt('bibliografia', ['standard' => $this->standard])`. O arquivo `AiPrompt.php` foi preservado.
+- Definidos os quatro campos obrigatórios do schema, incluindo `autor` e `titulo` nos objetos de `busca_dedalus` e confiança inteira entre 0 e 100.
+- A chamada síncrona `prompt()` delega a execução ao trait do SDK e valida a correspondência das listas antes de devolver `StructuredAgentResponse`. Uma lista ausente, inválida ou de tamanho diferente gera `RuntimeException`.
+- Provider, modelo e timeout continuam seguindo os argumentos da chamada ou os padrões do SDK. O agente não fixa a configuração do LiteLLM.
+- Validados com HTTP simulado o envio do prompt original para as quatro normas disponíveis, o schema enviado ao provider, os metadados da resposta e a separação entre instruções e entrada do usuário.
+- Testadas respostas com listas ausentes, em formato inválido ou com itens a mais ou a menos, usando os fakes do SDK.
+
+O agente pode ser executado diretamente para verificação:
+
+```php
+$response = (new BibliografiaAgent($standard))->prompt($referencias);
+$resultado = $response->toArray();
+```
+
+A integração com cache e estatísticas no `AiService` pertence à etapa 4; a adoção pelos controllers pertence à etapa 5. Esta etapa não altera o fluxo atual das telas.
+
 ## Etapa 3 — Implementar o agente de ementa
 
 ### Implementação
