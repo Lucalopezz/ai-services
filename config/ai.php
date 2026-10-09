@@ -7,9 +7,9 @@
 | para os agentes de bibliografia e ementa. As demais opções vieram do SDK
 | e ficam disponíveis para integrações futuras; defini-las não executa chamadas.
 |
-| Na etapa 1, este arquivo é utilizado na validação do SDK. Os fluxos atuais
-| das telas ainda usam AiService com config/aiService.php até sua migração.
-| Os prompts continuam definidos em App\Models\AiPrompt.
+| O AiService executa os agentes com o provider e modelo selecionados aqui.
+| config/aiService.php mantém a retenção do cache de respostas. Os prompts
+| continuam definidos em App\Models\AiPrompt e são reutilizados pelos agentes.
 */
 
 // Reutiliza a URL raiz já configurada para o serviço atual, removendo a barra final.

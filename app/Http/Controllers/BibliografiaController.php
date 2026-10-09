@@ -2,14 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Ai\Agents\BibliografiaAgent;
+use App\Ai\Agents\EmentaAgent;
 use App\Models\AiPrompt;
 use App\Services\AiService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
+/**
+ * Valida os formulários de bibliografia e ementa e apresenta os resultados web ou JSON.
+ */
 class BibliografiaController extends Controller
 {
 
+    /**
+     * Recebe o serviço compartilhado de execução dos agentes.
+     *
+     * @param AiService $aiService Serviço de IA com cache e estatísticas.
+     * @return void
+     */
     public function __construct(private AiService $aiService) {}
 
     /**
@@ -19,10 +30,12 @@ class BibliografiaController extends Controller
      * retornando uma View renderizada ou um payload JSON estruturado com base no
      * cabeçalho `Accept` fornecido na requisição.
      *
-     * @param  \Illuminate\Http\Request  $request  Instância da requisição contendo o campo 'referencias'.
+     * @param  \Illuminate\Http\Request  $request Requisição com 'message' e 'standard' no POST.
      * @return \Illuminate\Contracts\View\View|\Illuminate\Http\JsonResponse Retorna View para requisições web ou JsonResponse para APIs.
      *
      * @throws \Illuminate\Validation\ValidationException Se a validação dos dados de entrada falhar.
+     * @throws \RuntimeException Quando a resposta do agente não respeitar seu contrato.
+     * @throws \Laravel\Ai\Exceptions\AiException Em caso de falha do provider pelo SDK.
      */
     public function bibliografia(Request $request)
     {
@@ -53,9 +66,8 @@ class BibliografiaController extends Controller
         $standard = $request->input('standard');
 
         $prompt = AiPrompt::systemPrompt('bibliografia', ['standard' => $standard]);
-        $message = AiPrompt::renderFromPrompt($prompt, $referencias);
-        $resultadoRaw = $this->aiService->submit($message);
-        $resultado = json_decode($resultadoRaw, true) ?? [];
+        // O serviço retorna os dados estruturados; o agente fornece o prompt original ao SDK.
+        $resultado = $this->aiService->submit(new BibliografiaAgent($standard), $referencias);
 
         $data = [
             'referencias'   => $referencias,
@@ -76,6 +88,15 @@ class BibliografiaController extends Controller
     }
 
 
+    /**
+     * Valida e revisa a ementa, apresentando os dados estruturados em uma view ou JSON.
+     *
+     * @param Request $request Requisição com o campo 'mensagem' no POST.
+     * @return \Illuminate\Contracts\View\View|\Illuminate\Http\JsonResponse Formulário ou resultado da revisão.
+     * @throws \Illuminate\Validation\ValidationException Quando a entrada não for válida.
+     * @throws \RuntimeException Quando a resposta do agente não respeitar seu contrato.
+     * @throws \Laravel\Ai\Exceptions\AiException Em caso de falha do provider pelo SDK.
+     */
     public function ementa(Request $request)
     {
         if ($request->isMethod('get')) {
@@ -97,10 +118,9 @@ class BibliografiaController extends Controller
 
         $mensagem = $request->input('mensagem');
 
-        $message = AiPrompt::render('ementa', $mensagem);
         $prompt = AiPrompt::systemPrompt('ementa');
-        $resultadoRaw = $this->aiService->submit($message);
-        $resultado = json_decode($resultadoRaw, true) ?? [];
+        // A entrada permanece separada das instruções preservadas pelo EmentaAgent.
+        $resultado = $this->aiService->submit(new EmentaAgent, $mensagem);
 
 
         // dd($resultado);

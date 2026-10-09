@@ -261,7 +261,27 @@ Os dados de uso e metadados são obtidos de `$response` antes de o serviço devo
 
 Camada compartilhada pequena, executando agentes e preservando cache e estatísticas. Os agentes definem os schemas e fornecem as instruções reutilizando os textos de `AiPrompt`.
 
+### Resultado da implementação
+
+Etapa 4 concluída em 09/10/2026:
+
+- Adaptado `AiService::submit(Agent $agent, string $input): array` para executar o agente pelo SDK, com timeout de 60 segundos e provider/modelo obtidos de `config/ai.php`.
+- A retenção continua sendo obtida de `aiService.cacheRetention`. Retenção zero ou negativa desabilita a leitura e a gravação do cache.
+- Versionada a chave com o prefixo `ai:submit:v2:`. O hash inclui classe do agente, instruções, schema, provider, configuração da conexão, modelo e entrada. URLs e credenciais diferentes também separam resultados; os valores não são expostos na chave.
+- O cache armazena somente arrays com resultado validado e estatísticas normalizadas. `cached_at` preserva a data da geração original nas leituras seguintes; `duration` mede a execução atual, inclusive nos acertos de cache.
+- Normalizados os tokens nas chaves `prompt_tokens`, `completion_tokens` e `total_tokens`, mantendo os campos usados pelas telas. O identificador usa o ID do provider quando disponível ou o ID da invocação do SDK.
+- Validada a conclusão normal da resposta e a conformidade com os schemas atuais antes de armazenar: campos obrigatórios, objetos, listas, strings, inteiros, enums e limites numéricos. A correspondência das listas permanece validada pelo agente de bibliografia.
+- Respostas inválidas ou incompletas e falhas do provider não são armazenadas. As estatísticas são limpas no início de cada chamada para não exibir dados de uma execução anterior após uma falha.
+- Ajustadas as duas chamadas do controller para fornecer os agentes e consumir os arrays retornados. Essa dependência da nova assinatura antecipa a adaptação mínima prevista na etapa 5 e evita deixar os POSTs incompatíveis entre etapas.
+- Testados com HTTP simulado a execução, as estatísticas, a persistência e expiração do cache, a separação das chaves, a rejeição de respostas inválidas e os contratos JSON das duas rotas autenticadas. Os fakes nativos do SDK também foram verificados.
+- A suíte completa passou com 51 testes e 402 assertions, sem chamadas pagas ou alterações no banco de dados local.
+- Os textos de `AiPrompt.php` foram preservados integralmente.
+
+O validador comum cobre os tipos e restrições utilizados pelos dois agentes atuais. Novos tipos ou restrições de schema precisam de suporte explícito antes de ampliar este fluxo.
+
 ## Etapa 5 — Integrar os controllers e retirar o fluxo antigo
+
+As chamadas dos controllers e a remoção do `json_decode()` foram antecipadas na etapa 4 para compatibilidade com a nova assinatura. Nesta etapa, concluir o tratamento de erros nas respostas web/JSON, a limpeza da configuração antiga e a verificação da apresentação dos resultados.
 
 ### Implementação
 
