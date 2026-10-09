@@ -315,6 +315,24 @@ $resultado = $this->aiService->submit(
 
 Os dois fluxos utilizam agentes e saída estruturada, mantendo o contrato externo atual e apresentando falhas de forma explícita.
 
+### Resultado da implementação
+
+Etapa 5 concluída em 09/10/2026:
+
+- Concluída a integração dos controllers com os agentes e o array validado pelo serviço, iniciada na etapa 4. Os prompts e métodos de `AiPrompt.php` foram preservados.
+- Removidas as entradas antigas de provider de `config/aiService.php`. O arquivo mantém somente a retenção do cache; provider, URL, chave e modelo são obtidos de `config/ai.php`.
+- Falhas de execução são tratadas junto às chamadas do serviço, mantendo a validação da entrada e a autenticação sob responsabilidade do Laravel.
+- Nas requisições JSON, o erro retorna `success: false` e `message`, sem resultado parcial ou detalhes da exceção. Timeout retorna 504; limite de solicitações retorna 429; conexão, indisponibilidade e configuração ausente retornam 503; falha de processamento ou resposta inválida retorna 502.
+- Nas requisições web, o usuário retorna ao mesmo formulário com o alerta de erro do tema, mantendo o texto e a norma selecionada. O formulário de bibliografia passou a recuperar `old('message')`, correspondente ao campo efetivamente enviado.
+- Os registros de falha incluem apenas classe da exceção e nome da rota. Mensagens internas do provider, credenciais e conteúdo enviado não são copiados para a resposta pública ou para esses registros.
+- Mantidas as chaves públicas dos resultados. `analiseIngles` passou a utilizar `explicacoes.en`, campo efetivo do schema, em vez de procurar o campo inexistente `analise_ingles`.
+- Corrigidas as instruções de GET JSON para indicar os nomes reais dos campos de entrada, mantendo as chaves de mensagem existentes de cada endpoint.
+- Verificada a renderização dos resultados de bibliografia e ementa, inclusive os tokens e o status do inglês. O texto revisado da ementa é escapado, preservando as quebras de linha, e o script declara o painel de explicações utilizado pelo destaque cruzado.
+- Adicionados testes de erros HTTP, conexão, timeout, resposta inválida, configuração ausente, validação da entrada, autenticação, preservação do formulário e apresentação web/JSON, com HTTP simulado e usuário em memória.
+- A suíte completa passou com 82 testes e 589 assertions.
+
+A validação com chamadas reais dos dois schemas e a documentação final permanecem na etapa 6.
+
 ## Etapa 6 — Validar e documentar
 
 ### Implementação

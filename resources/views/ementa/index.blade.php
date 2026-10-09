@@ -109,20 +109,21 @@
           <div id="resposta" class="form-control resposta-editavel usptheme-contador" contenteditable="true">
             <div class="">
               <b>Ementa</b>
-              <div class="mb-2">{!! nl2br($resposta['ementa']['pt']) !!}</div>
-              <div class="font-italic mb-2" lang="en" spellcheck="true">{!! nl2br($resposta['ementa']['en']) !!}</div>
+              {{-- Mantém as quebras de linha e apresenta o conteúdo como texto. --}}
+              <div class="mb-2">{!! nl2br(e($resposta['ementa']['pt'])) !!}</div>
+              <div class="font-italic mb-2" lang="en" spellcheck="true">{!! nl2br(e($resposta['ementa']['en'])) !!}</div>
             </div>
             <div class="">
               <br>
               <b>Objetivos</b>
-              <div class="mb-2">{!! nl2br($resposta['objetivos']['pt']) !!}</div>
-              <div class="font-italic mb-2" lang="en" spellcheck="true">{!! nl2br($resposta['objetivos']['en']) !!}</div>
+              <div class="mb-2">{!! nl2br(e($resposta['objetivos']['pt'])) !!}</div>
+              <div class="font-italic mb-2" lang="en" spellcheck="true">{!! nl2br(e($resposta['objetivos']['en'])) !!}</div>
             </div>
             <div class="">
               <br>
               <b>Conteúdo Programático</b>
-              <div class="mb-2">{!! nl2br($resposta['conteudo_programatico']['pt']) !!}</div>
-              <div class="font-italic mb-2" lang="en" spellcheck="true">{!! nl2br($resposta['conteudo_programatico']['en']) !!}</div>
+              <div class="mb-2">{!! nl2br(e($resposta['conteudo_programatico']['pt'])) !!}</div>
+              <div class="font-italic mb-2" lang="en" spellcheck="true">{!! nl2br(e($resposta['conteudo_programatico']['en'])) !!}</div>
             </div>
           </div>
         </div>
@@ -161,7 +162,8 @@
       const original = document.getElementById('mensagem');
       const resposta = document.getElementById('resposta');
       const diff = document.getElementById('referencias-diff');
-      // const explicacao = document.getElementById('explicacao');
+      // O destaque cruzado usa o painel de explicações da revisão.
+      const explicacao = document.getElementById('explicacao');
 
       if (!original || !resposta || !diff) return;
 
