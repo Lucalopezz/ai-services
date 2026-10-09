@@ -6,6 +6,10 @@ Adaptar os fluxos atuais de bibliografia e ementa ao Laravel AI SDK, usando agen
 
 Cada requisição executará o agente de forma síncrona e independente.
 
+## Situação do plano
+
+As seis etapas foram concluídas em 09/10/2026. Bibliografia e ementa utilizam agentes do Laravel AI SDK com saída estruturada, cache, estatísticas e tratamento de falhas. A etapa 6 registra os testes automatizados, as chamadas reais e a observação de conteúdo identificada na amostra APA.
+
 ## Restrição obrigatória — Preservar os prompts existentes
 
 Os textos dos prompts de bibliografia e ementa em `app/Models/AiPrompt.php` devem ser preservados integralmente nesta implementação. Não reescrever, resumir, corrigir, acrescentar ou remover instruções, exemplos ou trechos que descrevem a estrutura JSON.
@@ -73,7 +77,7 @@ A descrição de JSON dentro do prompt permanece integralmente preservada, mesmo
 ### Implementação
 
 - Conferir os requisitos da versão estável de `laravel/ai` escolhida para instalação.
-- Ajustar o requisito de PHP do projeto para uma versão compatível. A linha atual do SDK exige PHP 8.3; o projeto permite PHP 8.2 no `composer.json`.
+- Ajustar o requisito de PHP do projeto para uma versão compatível. O SDK instalado exige PHP 8.3; antes desta migração, o projeto permitia PHP 8.2 no `composer.json`.
 - Instalar o pacote pelo Composer e validar a inicialização da aplicação.
 - Publicar somente a configuração do SDK, usando a tag `ai-config`.
 - Configurar `litellm` com o driver `openai-compatible` em `config/ai.php`.
@@ -352,6 +356,31 @@ Structured output define o formato esperado da resposta. A aplicação continua 
 ### Critério de conclusão
 
 Migração testada, schemas funcionando no provider real e instruções de configuração atualizadas.
+
+### Resultado da implementação
+
+Etapa 6 concluída em 09/10/2026:
+
+- Suíte automatizada validada com 82 testes e 589 assertions. Ela cobre os fakes do SDK e HTTP simulado, normas bibliográficas, schemas, correspondência entre listas, cache, estatísticas, falhas, autenticação e renderização das respostas web/JSON.
+- `composer validate --no-check-publish` e `composer check-platform-reqs` passaram; a aplicação inicializou com Laravel 12.69.3 e PHP 8.3.33.
+- Confirmado por `git diff 30cd003 --exit-code -- app/Models/AiPrompt.php` que o arquivo dos prompts está idêntico à versão anterior à instalação do SDK.
+- Executadas quatro chamadas reais pelo `AiService` e pelo LiteLLM, usando somente referências fictícias e uma ementa de teste sobre programação. O cache da verificação foi isolado em memória.
+
+| Caso real | Contrato e conteúdo básico verificados | Tokens | Duração | Repetição em cache |
+| --- | --- | --- | --- | --- |
+| Bibliografia — ABNT NBR 6023:2025 | Duas referências e quatro listas correspondentes, com campos e tipos válidos. | 1417 | 1,65 s | OK |
+| Bibliografia — APA 7th Edition | Duas referências e quatro listas correspondentes, com campos e tipos válidos. | 1368 | 1,50 s | OK |
+| Ementa — inglês ausente | Status `ausente` e textos não vazios em português e inglês nas três seções, incluindo a tradução. | 1437 | 1,82 s | OK |
+| Ementa — inglês presente | Status `presente`, revisão bilíngue e nota dentro de 0–100. | 1493 | 1,77 s | OK |
+
+As quatro chamadas concluíram normalmente e somaram 5715 tokens informados pelo SDK. Cada repetição retornou o mesmo array, com `cached: true` e a data original de `cached_at`, sem nova geração. Os autores, títulos, anos e contagens de páginas da amostra bibliográfica foram preservados; as revisões da ementa mantiveram os tópicos de programação utilizados na entrada.
+
+**Observação de conteúdo:** na amostra APA, as explicações começaram com uma introdução genérica (“Ajustado para o formato APA...”), apesar de o prompt original exigir explicações diretas. O schema e as validações da aplicação verificam a estrutura e as regras implementadas; essa instrução de redação continua dependendo da resposta do modelo. O prompt foi preservado conforme a restrição desta migração.
+
+- Atualizados README e `.env.example` com PHP 8.3, configuração do LiteLLM, alias de modelo, `/v1`, saída estruturada, cache, exemplos de uso, rotas reais, autenticação, CSRF e respostas de erro.
+- Atualizadas as informações técnicas de `AGENTS.md` para refletir a arquitetura e os arquivos de configuração atuais.
+
+Os testes web validaram a renderização HTTP das telas. A suíte Dusk existente não foi executada; o README descreve sua execução com aplicação, navegador e banco de testes separados.
 
 ## Referências
 

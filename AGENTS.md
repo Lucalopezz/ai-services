@@ -1,11 +1,12 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This Laravel 12 application provides USP bibliography formatting and course-description review. PHP dependencies require PHP 8.2 or newer.
+This Laravel 12 application provides USP bibliography formatting and course-description review through the Laravel AI SDK. PHP dependencies require PHP 8.3 or newer.
 
 - `app/Http/Controllers/`: request validation and web/JSON responses.
-- `app/Services/AiService.php`: provider requests, caching, and usage statistics.
-- `app/Models/AiPrompt.php`: bibliography and syllabus prompts and response schemas.
+- `app/Services/AiService.php`: synchronous SDK execution, response validation, caching, and usage statistics.
+- `app/Ai/Agents/`: bibliography and syllabus agents with structured output schemas.
+- `app/Models/AiPrompt.php`: existing bibliography and syllabus prompts, reused unchanged by the agents.
 - `routes/`: web and API route definitions; bibliography and syllabus routes currently live in `web.php`.
 - `resources/views/`: Blade screens and reusable partials; `resources/js/` and `resources/css/`: asset sources compiled into `public/`.
 - `config/`, `database/`, and `lang/`: configuration, migrations/factories/seeders, and translations.
@@ -39,4 +40,4 @@ Recent commits favor `feat:` and `fix:` with short, often Portuguese description
 At the end of every feature, provide the user with ready-to-run commands in the final chat response: `git add` listing the specific files belonging to the feature, followed by `git commit -m "<commit message>"` with an appropriate message. Exclude unrelated changes; do not use `git add .`. Never execute a commit automatically under any circumstances; the user must run the commit command manually.
 
 ## Security & Configuration Tips
-Keep credentials in `.env`; never commit real keys. Configure `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, and `AI_CACHE_RETENTION` through `config/aiService.php`. Preserve authentication on bibliography and syllabus routes.
+Keep credentials in `.env`; never commit real keys. Configure `AI_PROVIDER`, `LITELLM_URL`, `LITELLM_API_KEY`, and `LITELLM_MODEL` through `config/ai.php`. `config/aiService.php` only holds the response-cache retention from `AI_CACHE_RETENTION`. Preserve the existing prompts and authentication on bibliography and syllabus routes.
