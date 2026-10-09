@@ -196,6 +196,28 @@ Importar `App\Models\AiPrompt` no agente. A versão inicial utiliza o prompt de 
 
 Ementa revisada pelo agente com estrutura explícita, campos tipados e versões em português e inglês nos campos esperados pela aplicação.
 
+### Resultado da implementação
+
+Etapa 3 concluída em 09/10/2026:
+
+- Criado `app/Ai/Agents/EmentaAgent.php`, implementando `Agent` e `HasStructuredOutput` com o trait `Promptable`.
+- `instructions()` retorna integralmente `AiPrompt::systemPrompt('ementa')`, preservando também a descrição e o exemplo de JSON existentes. O arquivo `AiPrompt.php` não foi alterado.
+- Definidos `score`, `explicacoes` e `texto_revisado` como objetos obrigatórios, com todos os campos aninhados descritos no prompt.
+- A nota é um inteiro entre 0 e 100; o status do inglês aceita somente `presente`, `parcial` ou `ausente`.
+- Ementa, objetivos e conteúdo programático exigem versões `pt` e `en`, seguindo a instrução original de traduzir os trechos cujo inglês estiver ausente.
+- O agente utiliza a execução síncrona do SDK e os padrões de provider, modelo e timeout, sem adicionar parâmetros de disciplina ou área.
+- Validados com HTTP simulado o envio integral do prompt, o schema serializado pelo driver e a conversão da resposta em `StructuredAgentResponse`.
+- Testados os três estados do inglês, as notas extremas e o uso dos fakes nativos do SDK. As respostas simuladas verificam o contrato e a integração; a qualidade da revisão e tradução será avaliada com chamadas reais na etapa 6.
+
+O agente pode ser executado diretamente para verificação:
+
+```php
+$response = (new EmentaAgent)->prompt($mensagem);
+$resultado = $response->toArray();
+```
+
+A integração com cache e estatísticas no `AiService` pertence à etapa 4; a adoção pelos controllers pertence à etapa 5.
+
 ## Etapa 4 — Adaptar o AiService para executar agentes
 
 ### Implementação
