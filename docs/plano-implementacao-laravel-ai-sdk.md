@@ -86,6 +86,18 @@ A descrição de JSON dentro do prompt permanece integralmente preservada, mesmo
 
 Aplicação inicializando com o SDK instalado e uma resposta estruturada funcionando pelo LiteLLM. Uma chamada comum de texto não comprova suporte ao schema.
 
+### Resultado da implementação
+
+Etapa 1 concluída em 09/10/2026:
+
+- Instalado `laravel/ai` 1.2.0, com requisito estável `^1.2@stable` e PHP `^8.3`.
+- Mantido Laravel 12.69.3, sem atualização das demais dependências. `symfony/yaml` passou de dependência de desenvolvimento para dependência de produção do SDK, mantendo sua versão.
+- Publicado somente `config/ai.php` e configurado o provider padrão `litellm`, reutilizando as variáveis existentes.
+- Normalizada a URL para a base `/v1`, aceitando barra final e evitando duplicar `/v1` no SDK.
+- Validada uma chamada real com um schema contendo `status` (enum `ok`) e `value` (inteiro 42). O gateway retornou os valores esperados; o SDK informou 56 tokens.
+- Adicionados testes com HTTP simulado para a configuração, o envio de `json_schema` e a conversão da resposta estruturada.
+- Preservados os prompts existentes. Os agentes de bibliografia e ementa continuam previstos nas etapas seguintes.
+
 ## Etapa 2 — Implementar o agente de bibliografia
 
 ### Implementação
