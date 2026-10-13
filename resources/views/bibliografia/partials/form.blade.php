@@ -9,8 +9,9 @@
         · <span class="usptheme-contador-caracteres"></span>
       </span>
     </label>
+    {{-- Recupera o campo enviado no POST ao voltar após validação ou falha da IA. --}}
     <textarea id="message" name="message" class="form-control usptheme-contador" rows="6" maxlength="10000"
-      placeholder="Cole aqui as referências bibliográficas..." required>{{ old('referencias', $referencias ?? '') }}</textarea>
+      placeholder="Cole aqui as referências bibliográficas..." required>{{ old('message', $referencias ?? '') }}</textarea>
   </div>
   <div class="d-flex align-items-end mb-2">
     <div class="form-group mb-0 mr-2">
