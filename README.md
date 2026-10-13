@@ -41,7 +41,7 @@ Controller → AiService (cache e estatísticas) → Agente → Laravel AI SDK �
 
 ### Pré-requisitos
 
-* PHP
+* PHP 8.3 ou superior
 * Composer
 * Banco de Dados (MySQL / PostgreSQL / SQLite)
 * Gateway LiteLLM com modelo que aceite saída estruturada via `json_schema`
@@ -126,4 +126,4 @@ Falhas de execução retornam `{"success": false, "message": "..."}`:
 
 Entrada inválida retorna 422, com os erros de validação do Laravel; requisições JSON sem autenticação retornam 401. Nas requisições web, falhas de IA retornam ao formulário com um alerta e preservam a entrada.
 
-Mais detalhes sobre a implementação estão no [plano de implementação](docs/plano-implementacao-laravel-ai-sdk.md).
+Consulte a [documentação técnica da integração com o Laravel AI SDK](docs/implementacao-laravel-ai-sdk.md) para entender o código atual, os schemas, o cache, as estatísticas, os fluxos de execução e os testes. O [plano de implementação](docs/plano-implementacao-laravel-ai-sdk.md) registra as etapas e os resultados da migração.
