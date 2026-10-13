@@ -19,6 +19,10 @@ return [
 
     'default' => env('LOG_CHANNEL', 'stack'),
 
+    // A captura precisa ser ativada explicitamente porque inclui o conteúdo completo da conversa.
+    // Ler a variável aqui permite que a opção funcione também com a configuração em cache.
+    'ai_conversations_enabled' => (bool) env('AI_CONVERSATION_LOG_ENABLED', false),
+
     /*
     |--------------------------------------------------------------------------
     | Deprecations Log Channel
@@ -48,6 +52,19 @@ return [
     */
 
     'channels' => [
+        // Um canal próprio mantém pedidos e retornos no arquivo de diagnóstico mesmo quando
+        // o canal geral envia logs para outro destino ou filtra níveis menos severos.
+        'ai_conversations' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/ai-conversations.log'),
+            'level' => 'debug',
+            // Cada evento contém várias linhas: o bloqueio evita que escritas simultâneas
+            // misturem linhas de chamadas diferentes dentro de um mesmo bloco.
+            'locking' => true,
+            // O logger seleciona os dados; o formatter organiza apenas sua exibição no arquivo.
+            'formatter' => App\Logging\AiConversationFormatter::class,
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => ['single'],

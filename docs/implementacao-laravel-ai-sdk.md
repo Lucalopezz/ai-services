@@ -73,7 +73,7 @@ Os agentes utilizados pelos endpoints não implementam `Conversational` nem `Has
 | [config/ai.php](../config/ai.php) | Selecionar provider, driver, URL, chave e modelo de texto. |
 | [config/aiService.php](../config/aiService.php) | Definir a retenção do cache de respostas. |
 | [config/cache.php](../config/cache.php) | Escolher o armazenamento usado pela facade `Cache`. |
-| [app/Models/AiPrompt.php](../app/Models/AiPrompt.php) | Manter os textos originais dos prompts e a lista de normas bibliográficas. |
+| [app/Models/AiPrompt.php](../app/Models/AiPrompt.php) | Manter as regras de conteúdo dos prompts e a lista de normas bibliográficas. |
 | [app/Ai/Agents/BibliografiaAgent.php](../app/Ai/Agents/BibliografiaAgent.php) | Fornecer instruções, schema e verificação das quatro listas bibliográficas. |
 | [app/Ai/Agents/EmentaAgent.php](../app/Ai/Agents/EmentaAgent.php) | Fornecer instruções e schema da revisão bilíngue. |
 | [app/Services/AiService.php](../app/Services/AiService.php) | Executar agentes, validar resultados, administrar cache e normalizar estatísticas. |
@@ -146,19 +146,13 @@ AiPrompt::systemPrompt('bibliografia', ['standard' => $this->standard]);
 AiPrompt::systemPrompt('ementa');
 ```
 
-`systemPrompt()` seleciona o conteúdo pelo identificador do serviço. Na bibliografia, a norma é interpolada no texto original. Na ementa, são preservadas as instruções acadêmicas, a descrição dos campos e o exemplo de JSON.
+`systemPrompt()` seleciona o conteúdo pelo identificador do serviço. Na bibliografia, a norma é interpolada nas regras de formatação e são mantidas as orientações de conteúdo, consulta ao Dedalus e confiança. Na ementa, são preservadas as instruções acadêmicas, a avaliação e a revisão bilíngue. Os blocos que exigiam JSON e repetiam sua estrutura foram retirados: os métodos `schema()` dos agentes definem o formato enviado pelo SDK.
 
 O conteúdo do usuário é passado separadamente a `prompt($input, ...)`. No driver configurado, o SDK monta uma mensagem `system` com as instruções e uma mensagem `user` com a entrada. Os controllers não concatenam o texto do formulário às instruções e não montam manualmente o envelope Chat Completions.
 
-Os métodos antigos `AiPrompt::render()` e `renderFromPrompt()` continuam no arquivo preservado, mas não são utilizados pelo fluxo migrado. Os controllers ainda obtêm `systemPrompt()` para preencher a chave pública `prompt` no resultado; a execução usa as instruções fornecidas pelo agente.
+Os métodos antigos `AiPrompt::render()` e `renderFromPrompt()` continuam disponíveis, mas não são utilizados pelo fluxo migrado. Os controllers ainda obtêm `systemPrompt()` para preencher a chave pública `prompt` no resultado; a execução usa as instruções fornecidas pelo agente.
 
-A migração preservou integralmente `AiPrompt.php`. A comparação com a base anterior à instalação do SDK pode ser repetida com:
-
-```bash
-git diff 30cd003 --exit-code -- app/Models/AiPrompt.php
-```
-
-O schema complementa essas instruções: ele representa tipos e campos em código, enquanto o prompt descreve o trabalho a realizar e o significado do conteúdo.
+O schema representa tipos e campos em código, enquanto o prompt descreve o trabalho a realizar e o significado do conteúdo. A retirada dos blocos de serialização mantém os contratos atuais e altera as instruções que participam da chave de cache, evitando reutilizar respostas geradas com o prompt anterior. A qualidade do conteúdo real deve ser comparada usando o gateway configurado, além dos testes estruturais com HTTP simulado.
 
 ## 5. Agente de bibliografia
 
@@ -558,6 +552,16 @@ Na web, o controller redireciona para a mesma rota, usa `withErrors(['ai' => $me
 
 O registro feito por esse tratamento usa `Log::warning()` com uma mensagem fixa e dois campos: `exception_type`, com a classe da exceção, e `route`, com o nome da rota. Esse registro não copia o conteúdo enviado, a mensagem interna do provider ou as credenciais. A resposta pública também usa mensagens próprias, inclusive quando `app.debug` está habilitado.
 
+### 12.4 Log opcional da conversa com a IA
+
+`AI_CONVERSATION_LOG_ENABLED=true`, lido em `config/logging.php`, ativa o canal `ai_conversations`, que escreve em `storage/logs/ai-conversations.log`. Depois de alterar o `.env`, execute `php artisan config:clear`. Para gerar uma nova resposta a cada teste, use também `AI_CACHE_RETENTION=0`.
+
+`AiConversationLogger` é compartilhado pelo container dentro da requisição. `AiService::submit()` chama `start()` antes de ler o cache ou gerar a resposta, `result()` para registrar o sucesso e `error()` em caso de falha. O cache e as estatísticas são processados diretamente no serviço, sem uma função anônima adicional para o log. Todos os eventos da execução possuem o mesmo `request_id`. `AppServiceProvider` conecta os eventos HTTP `RequestSending`, `ResponseReceived` e `ConnectionFailed` ao logger. Fora dessa captura, os eventos são ignorados. `finish()` limpa o contexto em `finally`, inclusive após exceções, e falhas de escrita do arquivo não interrompem a execução da IA.
+
+Os registros `ai.request` contêm agente, provider, modelo, mensagens e schema solicitado. `ai.http.request` contém método, URL e payload efetivamente enviado pelo SDK. `ai.http.response` contém status e corpo bruto, capturados antes da interpretação pelo SDK, permitindo inspecionar JSON inválido, recusas e erros HTTP. `ai.result` registra o resultado validado e suas estatísticas; `ai.cache_hit` registra o reaproveitamento sem inventar tráfego HTTP. Falhas geram `ai.error`, com classe e mensagem interna, e falhas de conexão também geram `ai.http.connection_failed`.
+
+O canal usa `AiConversationFormatter` para manter o cabeçalho reconhecido pelo Log Viewer e exibir cada evento em um bloco com identificação, campos e textos indentados. Prompts usam quebras reais de linha; schemas mantêm a sintaxe JSON com indentação. Strings JSON em `body` e `content` são expandidas somente para apresentação, evitando escapes duplicados; corpos inválidos permanecem como texto. Os finais de linha são normalizados, sem substituir escapes literais. O contexto original dos eventos permanece inalterado, e os limites de normalização evitam cortar os schemas aninhados de ementa. O novo formato se aplica às próximas gravações; registros anteriores permanecem no formato antigo. Cabeçalhos e configuração de credenciais são excluídos, mas os textos completos do usuário e do provider são registrados. A opção é desativada por padrão. Chamadas diretas a `$agent->prompt()` não são capturadas. Veja o passo a passo e a tabela de eventos no [README](../README.md#log-de-pedidos-e-retornos-da-ia).
+
 ## 13. Apresentação nas telas
 
 ### 13.1 Bibliografia
@@ -599,9 +603,10 @@ Os testes dos controllers usam HTTP simulado. Os fakes nativos do SDK verificam 
 | Arquivo de teste | Verificações principais |
 | --- | --- |
 | [AiSdkConfigurationTest.php](../tests/Feature/AiSdkConfigurationTest.php) | Normalização de URL com e sem `/v1`, barra final e caminho adicional; configuração ausente; autenticação HTTP; modelo; envio de `json_schema`; conversão da resposta estruturada. |
-| [BibliografiaAgentTest.php](../tests/Feature/BibliografiaAgentTest.php) | Prompt original nas quatro normas; separação de mensagens system/user; schema obrigatório; confiança 0–100; ausência de tools e conversa; rejeição de listas ausentes, inválidas ou de tamanhos diferentes. |
+| [BibliografiaAgentTest.php](../tests/Feature/BibliografiaAgentTest.php) | Regras de conteúdo nas quatro normas sem bloco de formato JSON; separação de mensagens system/user; schema obrigatório; confiança 0–100; ausência de tools e conversa; rejeição de listas ausentes, inválidas ou de tamanhos diferentes. |
 | [EmentaAgentTest.php](../tests/Feature/EmentaAgentTest.php) | Preservação do prompt; estrutura aninhada; versões `pt` e `en`; estados do inglês; notas extremas; metadados; uso dos fakes nativos. |
 | [AiServiceTest.php](../tests/Feature/AiServiceTest.php) | Timeout 60; estatísticas; cache entre instâncias; expiração; retenção zero; separação por entrada, norma, agente, conexão, instruções e schema; provider selecionado; respostas inválidas não armazenadas; limpeza das estatísticas; fakes sem resposta HTTP bruta; contratos JSON dos controllers. |
+| [AiConversationLoggingTest.php](../tests/Feature/AiConversationLoggingTest.php) | Arquivo de log real com HTTP simulado; mensagens e schema enviados; corpo bruto; correlação; cache; captura desativada; erros HTTP, conexão, JSON e validação; limpeza do contexto; fakes nativos; falha de escrita. |
 | [AiControllerTest.php](../tests/Feature/AiControllerTest.php) | Falhas HTTP, conexão e timeout; configuração ausente; resposta inválida; mensagens sanitizadas; validação da entrada; autenticação; preservação de formulário; renderização web; JSON e acerto de cache; escape de HTML; instruções de GET. |
 | [Laravel13CompatibilityTest.php](../tests/Feature/Laravel13CompatibilityTest.php) | Origem e tokens CSRF válidos e inválidos nos dois endpoints; seleção e download de logs pelos links do tema USP; contrato de criptografia dos links de limpeza/exclusão; acesso administrativo obrigatório. |
 
@@ -661,7 +666,7 @@ $ementa = $service->submit(new EmentaAgent, $mensagem);
 $estatisticasEmenta = $service->statistics();
 ```
 
-Executar `$agent->prompt()` diretamente fornece a resposta do SDK, mas não passa pelo cache, pela normalização das estatísticas nem pela validação recursiva do serviço. No caso de bibliografia, a correspondência das listas continua sendo verificada pelo método do agente. Na ementa, a validação local descrita neste guia depende da passagem pelo serviço.
+Executar `$agent->prompt()` diretamente fornece a resposta do SDK, mas não passa pelo cache, pelo log opcional da conversa, pela normalização das estatísticas nem pela validação recursiva do serviço. No caso de bibliografia, a correspondência das listas continua sendo verificada pelo método do agente. Na ementa, a validação local descrita neste guia depende da passagem pelo serviço.
 
 ### 15.2 Evoluir schemas e regras de negócio
 
@@ -669,7 +674,7 @@ Para alterar o contrato de um agente, examine em conjunto o prompt em `AiPrompt`
 
 Uma alteração do schema já modifica a chave de cache. Uma mudança somente na lógica de validação, sem alterar o schema ou as instruções, não modifica essa chave; como os acertos não são revalidados, pode ser necessário alterar a versão do prefixo para evitar reutilizar registros validados sob regras anteriores.
 
-Os prompts foram preservados como requisito da migração. Uma mudança futura de instruções deve ser tratada explicitamente e acompanhada da avaliação de conteúdo, além da compatibilidade estrutural.
+As regras de conteúdo foram preservadas ao retirar os blocos de formato de retorno dos prompts. Mudanças futuras de instruções devem ser acompanhadas da avaliação de conteúdo, além da compatibilidade estrutural; o log opcional permite inspecionar pedidos e respostas reais nesses testes.
 
 ### 15.3 Configuração e diagnóstico
 

@@ -43,18 +43,23 @@ class BibliografiaAgent implements Agent, HasStructuredOutput
     public function __construct(private string $standard) {}
 
     /**
-     * Reutiliza integralmente as instruções de bibliografia mantidas em AiPrompt.
+     * Obtém as regras de conteúdo bibliográfico mantidas em AiPrompt.
+     * Os campos e seus tipos são enviados pelo SDK a partir de schema(); aqui
+     * permanecem as regras bibliográficas e o significado de cada informação.
      *
-     * @return string Prompt original com a norma selecionada interpolada.
+     * @return string Instruções com a norma selecionada interpolada, sem estrutura JSON.
      */
     public function instructions(): string
     {
-        // AiPrompt permanece como fonte única, inclusive das instruções sobre JSON.
+        // Centraliza as regras em AiPrompt e interpola a norma selecionada. O SDK usa
+        // schema() para montar response_format, sem exigir um exemplo JSON nas instruções.
         return AiPrompt::systemPrompt('bibliografia', ['standard' => $this->standard]);
     }
 
     /**
-     * Declara o formato já descrito no prompt, preservando as quatro listas atuais.
+     * Define o contrato de saída enviado pelo SDK, preservando as quatro listas atuais.
+     * Este contrato continua obrigatório após retirar o bloco de formato do prompt;
+     * a correspondência entre as listas permanece validada pelo agente.
      *
      * @param JsonSchema $schema Construtor de tipos JSON Schema fornecido pelo SDK.
      * @return array<string, Type> Campos obrigatórios e tipos da resposta de bibliografia.

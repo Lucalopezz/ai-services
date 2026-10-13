@@ -20,18 +20,23 @@ class EmentaAgent implements Agent, HasStructuredOutput
     use Promptable;
 
     /**
-     * Reutiliza integralmente as instruções de revisão acadêmica mantidas em AiPrompt.
+     * Obtém as instruções de avaliação acadêmica e revisão bilíngue de AiPrompt.
+     * A avaliação, a tradução e o tom acadêmico dependem dessas instruções;
+     * a estrutura de objetos e campos obrigatórios é definida em schema().
      *
-     * @return string Prompt original de ementa, incluindo seu exemplo de JSON.
+     * @return string Regras de conteúdo acadêmico sem exemplo de JSON.
      */
     public function instructions(): string
     {
-        // O schema complementa o contrato de saída, preservando o texto original.
+        // O SDK envia o formato a partir de schema(). AiPrompt mantém as orientações
+        // de revisão e tradução, sem repetir o objeto JSON esperado nas instruções.
         return AiPrompt::systemPrompt('ementa');
     }
 
     /**
-     * Declara os objetos e campos obrigatórios já descritos no prompt de ementa.
+     * Define os objetos e campos obrigatórios de avaliação, análise e revisão.
+     * Os objetos bilíngues e o status do inglês continuam exigidos pelo SDK,
+     * mesmo após remover o exemplo de retorno JSON das instruções do agente.
      *
      * @param JsonSchema $schema Construtor de tipos JSON Schema fornecido pelo SDK.
      * @return array<string, Type> Avaliação, explicações e versões revisadas nos dois idiomas.

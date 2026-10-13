@@ -11,9 +11,10 @@ use Laravel\Ai\ObjectSchema;
 use Laravel\Ai\Responses\Data\FinishReason;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
+use Throwable;
 
 /**
- * Executa agentes estruturados pelo SDK e compartilha cache e estatísticas.
+ * Executa agentes estruturados pelo SDK e compartilha cache, estatísticas e log opcional.
  *
  * As instruções e schemas pertencem aos agentes. A configuração do provider
  * vem de config/ai.php; a retenção do cache permanece em config/aiService.php.
@@ -37,6 +38,10 @@ class AiService
 
     /**
      * Executa um agente síncrono, valida sua resposta e reaproveita resultados em cache.
+     * Quando habilitado, registra entrada, tráfego HTTP, saída e falhas no canal da IA.
+     * A captura do log acompanha o processamento do cache e da geração. Os eventos
+     * HTTP registram o tráfego do SDK, e o serviço registra o resultado já validado
+     * ou a exceção, encerrando o contexto antes de devolver o controle ao chamador.
      *
      * @param Agent $agent Agente que também implementa HasStructuredOutput.
      * @param string $input Texto fornecido pelo usuário, separado das instruções.
@@ -59,13 +64,16 @@ class AiService
         $provider = Ai::getDefaultInstance();
         $model = Ai::textProvider($provider)->defaultTextModel();
         $schema = (new ObjectSchema($agent->schema(new JsonSchemaTypeFactory)))->toSchema();
+        // Usa o mesmo texto nas instruções da chave de cache e no registro do pedido
+        // da aplicação, para permitir relacionar um resultado ao prompt que o originou.
+        $instructions = (string) $agent->instructions();
 
         // A versão separa o novo array normalizado das respostas HTTP antigas.
         // A configuração da conexão também participa do hash: mudanças de URL,
         // credencial ou modelo não reutilizam resultados de outro destino.
         $cacheKey = 'ai:submit:v2:'.hash('sha256', json_encode([
             'agent' => $agent::class,
-            'instructions' => (string) $agent->instructions(),
+            'instructions' => $instructions,
             'schema' => $schema,
             'provider' => $provider,
             'provider_config' => config("ai.providers.{$provider}"),
@@ -110,18 +118,54 @@ class AiService
             ];
         };
 
-        // Retenção zero ou negativa desabilita tanto a leitura quanto a gravação.
-        $record = $this->cacheRetention > 0
-            ? Cache::remember($cacheKey, now()->addSeconds($this->cacheRetention), $generate)
-            : $generate();
+        // Resolve o logger pelo container para compartilhar a mesma instância com os
+        // listeners HTTP. O contexto fica ativo durante cache, SDK e validação.
+        // As mensagens abaixo descrevem a entrada da aplicação; os listeners registram
+        // separadamente o payload real construído pelo SDK, com suas opções e schema.
+        $logger = app(AiConversationLogger::class);
+        $logger->start([
+            'agent' => $agent::class,
+            'provider' => $provider,
+            'model' => $model,
+            'messages' => [
+                ['role' => 'system', 'content' => $instructions],
+                ['role' => 'user', 'content' => $input],
+            ],
+            'schema' => $schema,
+        ]);
 
-        $this->statistics = [
-            ...$record['statistics'],
-            'duration' => round(microtime(true) - $startTime, 2),
-            'cached' => $wasCached,
-        ];
+        try {
+            // Com cache ativo, remember() só executa $generate quando não encontra o registro.
+            // Nesse caso os listeners capturam o HTTP; no acerto, o logger registra ai.cache_hit.
+            // Retenção zero ou negativa ignora o cache e permite testar uma nova resposta sempre.
+            $record = $this->cacheRetention > 0
+                ? Cache::remember($cacheKey, now()->addSeconds($this->cacheRetention), $generate)
+                : $generate();
 
-        return $record['result'];
+            // Preserva tokens e cached_at do registro original. Duração e cached descrevem
+            // esta execução, pois uma leitura do cache tem tempo e origem diferentes da geração.
+            $this->statistics = [
+                ...$record['statistics'],
+                'duration' => round(microtime(true) - $startTime, 2),
+                'cached' => $wasCached,
+            ];
+
+            // Registra somente o resultado aceito pelo serviço, junto das estatísticas
+            // disponibilizadas ao controller; respostas rejeitadas seguem para o catch.
+            $logger->result($record['result'], $this->statistics);
+
+            return $record['result'];
+        } catch (Throwable $exception) {
+            // Acrescenta o diagnóstico ao arquivo e propaga a mesma exceção para preservar
+            // o tratamento de erros e os status HTTP já definidos pelo controller.
+            $logger->error($exception);
+
+            throw $exception;
+        } finally {
+            // finally também roda após return e throw. Limpar o contexto impede que uma
+            // requisição HTTP posterior seja registrada como parte desta conversa com a IA.
+            $logger->finish();
+        }
     }
 
     /**

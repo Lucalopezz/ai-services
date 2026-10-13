@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * Verifica o prompt original e o contrato aninhado enviado pelo agente de ementa.
+ * Verifica as instruções acadêmicas e o contrato aninhado enviado pelo agente de ementa.
  *
  * O driver do SDK usa HTTP simulado para validar a integração sem chamadas pagas.
  */
@@ -38,7 +38,7 @@ class EmentaAgentTest extends TestCase
     }
 
     /**
-     * Confere a preservação do prompt e os dados estruturados para entradas com e sem inglês.
+     * Confere as regras acadêmicas e os dados estruturados para entradas com e sem inglês.
      *
      * @param string $input Texto fornecido pelo usuário com os idiomas disponíveis.
      * @param string $status Estado do inglês esperado na resposta simulada.
@@ -46,7 +46,7 @@ class EmentaAgentTest extends TestCase
      * @return void
      */
     #[DataProvider('courseDescriptions')]
-    public function test_agent_preserves_prompt_and_returns_bilingual_output(string $input, string $status, int $score): void
+    public function test_agent_sends_content_instructions_and_returns_bilingual_output(string $input, string $status, int $score): void
     {
         $result = self::ementaResult($status, $score);
         Http::fake([
@@ -68,6 +68,13 @@ class EmentaAgentTest extends TestCase
         $response = $agent->prompt($input);
 
         $this->assertSame($originalPrompt, $agent->instructions());
+        // A remoção do exemplo JSON não pode eliminar critérios acadêmicos ou a regra
+        // de tradução quando o inglês falta. O schema continua verificado no pedido HTTP abaixo.
+        $this->assertStringNotContainsString('OUTPUT:', $originalPrompt);
+        $this->assertStringNotContainsString('valid JSON object', $originalPrompt);
+        $this->assertStringNotContainsString('"texto_revisado":', $originalPrompt);
+        $this->assertStringContainsString('QUALITY SCORE (0–100)', $originalPrompt);
+        $this->assertStringContainsString('provide an accurate technical translation', $originalPrompt);
         $this->assertInstanceOf(StructuredAgentResponse::class, $response);
         $this->assertSame($result, $response->toArray());
         $this->assertNull($response->conversationId);
@@ -77,7 +84,7 @@ class EmentaAgentTest extends TestCase
         [$request] = Http::recorded()->first();
         $this->assertSame('https://litellm.example.com/v1/chat/completions', $request->url());
         $this->assertSame('sdk-test-model', $request['model']);
-        // O exemplo de JSON do prompt permanece nas instruções, separado da entrada.
+        // As instruções acadêmicas permanecem separadas da entrada do usuário.
         $this->assertSame([
             ['role' => 'system', 'content' => $originalPrompt],
             ['role' => 'user', 'content' => $input],

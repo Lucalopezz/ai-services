@@ -5,6 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 
+/**
+ * Centraliza as instruções de conteúdo; os agentes definem o formato via JSON Schema.
+ * Os textos explicam como revisar e o que cada informação significa. Os métodos
+ * schema() de BibliografiaAgent e EmentaAgent mantêm os campos, tipos e limites
+ * usados pelo SDK, evitando repetir o contrato de serialização nas instruções.
+ */
 class AiPrompt extends Model
 {
     protected $fillable = [
@@ -15,6 +21,13 @@ class AiPrompt extends Model
         'user_content'
     ];
 
+    /**
+     * Obtém as instruções de um serviço com seus parâmetros padrão.
+     *
+     * @param string $slug Identificador bibliografia ou ementa.
+     * @return string Instruções de conteúdo para o agente.
+     * @throws InvalidArgumentException Quando o identificador não existir.
+     */
     public static function get(string $slug): string
     {
         return match ($slug) {
@@ -26,7 +39,12 @@ class AiPrompt extends Model
         };
     }
 
-    public static function getBibliografiaStandards()
+    /**
+     * Lista as normas disponíveis para seleção e validação da entrada.
+     *
+     * @return list<string> Normas bibliográficas aceitas pela aplicação.
+     */
+    public static function getBibliografiaStandards(): array
     {
         return [
             'ABNT NBR 6023:2025',
@@ -42,19 +60,26 @@ class AiPrompt extends Model
         ];
     }
 
+    /**
+     * Define as regras bibliográficas e o significado dos campos da resposta.
+     * Orientações de Dedalus, confiança e correspondência das listas permanecem
+     * no texto porque descrevem regras de conteúdo que o JSON Schema não substitui.
+     *
+     * @param array{standard?: string}|null $params Norma selecionada; ausente usa ABNT.
+     * @return string Instruções de revisão sem duplicar a estrutura JSON do agente.
+     */
     protected static function bibliografiaContent(?array $params = []): string
     {
         $standard = empty($params['standard']) ? 'ABNT NBR 6023:2025' : $params['standard'];
+        // Remove-se apenas a exigência de serialização JSON do prompt. As orientações
+        // de cada campo continuam necessárias para o modelo preencher o schema do agente.
         return <<<PROMPT
 You are a precise bibliographic formatting assistant following the {$standard} standard
-OUTPUT FORMAT RULE:
-You MUST respond STRICTLY with a valid JSON object. Do NOT include markdown code block wrappers (like ```json). The JSON must have exactly four root keys:
-1. "referencias": An array of strings containing ONLY the corrected, standardized references.
-2. "explicacoes": An array of strings explaining ONLY the specific adjustments, corrections, or missing fields. Do NOT include generic introductory phrases.
-3. "busca_dedalus": An array of objects, one for each reference, optimized for library catalog lookup with two keys:
-   - "autor": The primary author's name cleaned (e.g., "FARRET, F. A." or "ANDERSEN, James M."). If published by an organization, use the entity name.
-   - "titulo": The full main title including subtitle if present, excluding edition numbers or 'In:' prefixes.
-4. "confiancas": An array of integers from 0 to 100, representing the quality and completeness of the ORIGINAL input reference. High values (e.g. 90-100) indicate the input was nearly complete and required minimal changes. Low values (e.g. 0-50) indicate the original input was poor, highly incomplete, or required heavy modifications.
+CONTENT GUIDANCE:
+- "referencias": Provide ONLY the corrected, standardized references.
+- "explicacoes": Explain ONLY the specific adjustments, corrections, or missing fields. Do NOT include generic introductory phrases.
+- "busca_dedalus": Prepare catalog lookup information for each reference. For "autor", use the cleaned primary author's name (e.g., "FARRET, F. A." or "ANDERSEN, James M."); if published by an organization, use the entity name. For "titulo", use the full main title including subtitle if present, excluding edition numbers or 'In:' prefixes.
+- "confiancas": Evaluate the quality and completeness of the ORIGINAL input reference. High values (e.g. 90-100) indicate the input was nearly complete and required minimal changes. Low values (e.g. 0-50) indicate the original input was poor, highly incomplete, or required heavy modifications.
 
 FORMATTING RULES:
 - EXPLICIT RULES PRECEDENCE: Strictly adhere to all explicit formatting rules listed below. Always prioritize these explicit instructions over general knowledge or default guidelines whenever a conflict or ambiguity arises.
@@ -79,6 +104,15 @@ FORMATTING RULES:
 PROMPT;
     }
 
+    /**
+     * Define a avaliação acadêmica e a revisão bilíngue das seções fornecidas.
+     * O exemplo JSON foi retirado porque EmentaAgent::schema() define a estrutura;
+     * os critérios de avaliação e tradução continuam orientando os valores gerados.
+     *
+     * @param string|null $disciplina Nome opcional utilizado para preparar o contexto.
+     * @param string|null $area Área opcional utilizada para preparar o contexto.
+     * @return string Instruções acadêmicas; o formato da resposta pertence ao agente.
+     */
     protected static function ementaContent(?string $disciplina = null, ?string $area = null): string
     {
         // Constrói o bloco de contexto apenas se houver dados válidos
@@ -98,6 +132,8 @@ PROMPT;
             $contexto .= "\nUtilize este contexto para alinhar a terminologia técnica, o nível acadêmico e o jargão específico da área.\n";
         }
 
+        // As instruções de inglês ausente continuam aqui porque o schema exige os
+        // campos, mas não explica quando traduzir nem como avaliar equivalência entre idiomas.
         return <<<PROMPT
 You are an Academic and Curriculum Reviewer specializing in curriculum design across all fields, including STEM, Humanities, Life Sciences, Social Sciences, and Engineering.
 
@@ -142,7 +178,7 @@ Portuguese (`pt`):
 English (`en`):
 
 - `status`: `presente` = complete; `parcial` = incomplete or missing parts; `ausente` = no meaningful English text.
-- Assess spelling, grammar, punctuation, academic tone, clarity, PT equivalence, and field-specific terminology.
+- Assess spelling, grammar, punctuation, academic tone, clarity, PT equivalence, and field-specific terminology; explain when English is absent.
 
 3. REVISION
 
@@ -150,42 +186,6 @@ Provide final polished versions in Portuguese and English for all three sections
 
 Use a neutral, professional, concise, and evidence-based academic tone.
 
-OUTPUT:
-Return ONLY a valid JSON object. No Markdown or text outside the JSON. Follow this exact schema:
-
-{
-  "score": {
-    "valor": 0,
-    "justificativa": "1–2 sentence executive summary justifying the score."
-  },
-  "explicacoes": {
-    "pt": {
-      "gramatica_acentuacao_pontuacao": "Portuguese grammar, spelling, agreement, and punctuation analysis.",
-      "redacao_academica_clareza_pedagogica": "Portuguese academic style, clarity, redundancy, conciseness, and parallelism analysis.",
-      "terminologia_tecnica": "Portuguese technical terminology and conceptual precision analysis."
-    },
-    "en": {
-      "status": "presente | parcial | ausente",
-      "gramatica_acentuacao_pontuacao": "English spelling, grammar, and punctuation analysis, or explanation if absent.",
-      "redacao_academica_clareza_pedagogica": "English academic tone, clarity, and equivalence with Portuguese.",
-      "terminologia_tecnica": "English technical terminology and field-specific vocabulary analysis."
-    }
-  },
-  "texto_revisado": {
-    "ementa": {
-      "pt": "Final revised Portuguese text.",
-      "en": "Final revised or translated English text."
-    },
-    "objetivos": {
-      "pt": "Final revised Portuguese text.",
-      "en": "Final revised or translated English text."
-    },
-    "conteudo_programatico": {
-      "pt": "Final revised Portuguese text.",
-      "en": "Final revised or translated English text."
-    }
-  }
-}
 PROMPT;
     }
 
@@ -216,9 +216,9 @@ PROMPT;
     /**
      * Renderiza a estrutura de mensagens passando o texto do system prompt diretamente.
      *
-     * @param string $systemPrompt
-     * @param string $userContent
-     * @return array
+     * @param string $systemPrompt Instruções de conteúdo já selecionadas.
+     * @param string $userContent Texto fornecido pelo usuário.
+     * @return list<array{role: string, content: string}> Mensagens de sistema e usuário.
      */
     public static function renderFromPrompt(string $systemPrompt, string $userContent): array
     {
@@ -238,6 +238,7 @@ PROMPT;
      * Retorna as instruções de sistema associadas a um prompt.
      *
      * @param string $slug Identificador do prompt.
+     * @param array{standard?: string}|null $params Norma bibliográfica opcional.
      * @return string Instruções de sistema utilizadas pela IA.
      *
      * @throws \InvalidArgumentException Quando o prompt informado não existir.

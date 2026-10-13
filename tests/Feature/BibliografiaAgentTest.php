@@ -11,7 +11,7 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * Verifica o contrato de bibliografia, a preservação do prompt e a correspondência das listas.
+ * Verifica o contrato de bibliografia, as regras do prompt e a correspondência das listas.
  *
  * As chamadas são simuladas para não utilizar credenciais ou serviços pagos.
  */
@@ -39,13 +39,13 @@ class BibliografiaAgentTest extends TestCase
     }
 
     /**
-     * Confere o envio do prompt original e do schema pelo driver real, com HTTP simulado.
+     * Confere as regras de conteúdo no prompt e o formato no schema, com HTTP simulado.
      *
      * @param string $standard Norma bibliográfica suportada pela aplicação.
      * @return void
      */
     #[DataProvider('bibliographyStandards')]
-    public function test_agent_sends_the_original_prompt_and_structured_schema(string $standard): void
+    public function test_agent_sends_content_instructions_and_structured_schema(string $standard): void
     {
         $result = self::bibliographyResult();
         Http::fake([
@@ -68,6 +68,14 @@ class BibliografiaAgentTest extends TestCase
         $response = $agent->prompt($input);
 
         $this->assertSame($originalPrompt, $agent->instructions());
+        // Verifica as duas partes da simplificação: o bloco que duplicava o formato JSON
+        // saiu das instruções, mas norma, correspondência e significado da confiança permanecem.
+        // As verificações de response_format abaixo confirmam que o SDK continua enviando o schema.
+        $this->assertStringNotContainsString('OUTPUT FORMAT RULE:', $originalPrompt);
+        $this->assertStringNotContainsString('valid JSON object', $originalPrompt);
+        $this->assertStringContainsString($standard, $originalPrompt);
+        $this->assertStringContainsString('CORRESPONDENCE:', $originalPrompt);
+        $this->assertStringContainsString('quality and completeness of the ORIGINAL', $originalPrompt);
         $this->assertInstanceOf(StructuredAgentResponse::class, $response);
         $this->assertSame($result, $response->toArray());
         $this->assertNull($response->conversationId);
@@ -110,7 +118,7 @@ class BibliografiaAgentTest extends TestCase
     }
 
     /**
-     * Lista as normas atuais para conferir a interpolação sem reescrever o prompt.
+     * Lista as normas atuais para conferir sua interpolação nas regras de conteúdo.
      *
      * @return array<string, array{string}> Casos de teste identificados pela norma.
      */
