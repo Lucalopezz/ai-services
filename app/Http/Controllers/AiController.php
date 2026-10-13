@@ -7,6 +7,7 @@ use App\Ai\Agents\EmentaAgent;
 use App\Models\AiPrompt;
 use App\Services\AiService;
 use GuzzleHttp\Exception\ConnectException;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -26,10 +27,11 @@ use Throwable;
 
 /**
  * Valida os formulários de bibliografia e ementa e apresenta os resultados web ou JSON.
+ *
+ * Centraliza o tratamento das falhas de IA preservando os contratos públicos de cada fluxo.
  */
-class BibliografiaController extends Controller
+class AiController extends Controller
 {
-
     /**
      * Recebe o serviço compartilhado de execução dos agentes.
      *
@@ -50,7 +52,7 @@ class BibliografiaController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException Se a validação dos dados de entrada falhar.
      */
-    public function bibliografia(Request $request)
+    public function bibliografia(Request $request): View|JsonResponse|RedirectResponse
     {
         $standards = AiPrompt::getBibliografiaStandards();
         if ($request->isMethod('get')) {
@@ -69,6 +71,7 @@ class BibliografiaController extends Controller
             );
         }
 
+        // A norma deve pertencer à lista oferecida no formulário.
         $request->validate([
             'message' => ['required', 'string', 'max:10000'],
             'standard' => ['required', 'string', Rule::in($standards)],
@@ -81,7 +84,7 @@ class BibliografiaController extends Controller
         try {
             // O agente fornece o prompt original; o serviço devolve o array validado.
             $resultado = $this->aiService->submit(new BibliografiaAgent($standard), $referencias);
-        } catch (AiException|RequestException|ConnectionException|RuntimeException|InvalidArgumentException|JsonException $exception) {
+        } catch (AiException | RequestException | ConnectionException | RuntimeException | InvalidArgumentException | JsonException $exception) {
             return $this->aiFailureResponse($request, $exception);
         }
 
@@ -103,7 +106,6 @@ class BibliografiaController extends Controller
         return view('bibliografia.index', $data);
     }
 
-
     /**
      * Valida e revisa a ementa, apresentando os dados estruturados em uma view ou JSON.
      *
@@ -111,8 +113,9 @@ class BibliografiaController extends Controller
      * @return \Illuminate\Contracts\View\View|JsonResponse|RedirectResponse Formulário, revisão ou erro de processamento.
      * @throws \Illuminate\Validation\ValidationException Quando a entrada não for válida.
      */
-    public function ementa(Request $request)
+    public function ementa(Request $request): View|JsonResponse|RedirectResponse
     {
+        // A consulta inicial apresenta o formulário ou as instruções sem executar IA.
         if ($request->isMethod('get')) {
             if ($request->wantsJson()) {
                 return response()->json([
@@ -217,45 +220,5 @@ class BibliografiaController extends Controller
         } while ($exception = $exception->getPrevious());
 
         return false;
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
     }
 }

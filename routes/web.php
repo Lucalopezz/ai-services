@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\BibliografiaController;
+use App\Http\Controllers\AiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,8 +19,9 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth'])->group(function () {
-    Route::match(['get', 'post'], 'bibliografia', [BibliografiaController::class, 'bibliografia'])->name('bibliografia.bibliografia');
-    Route::match(['get', 'post'], 'ementa', [BibliografiaController::class, 'ementa'])->name('bibliografia.ementa');
+    // Os dois fluxos usam o mesmo controller e preservam os nomes públicos das rotas.
+    Route::match(['get', 'post'], 'bibliografia', [AiController::class, 'bibliografia'])->name('bibliografia.bibliografia');
+    Route::match(['get', 'post'], 'ementa', [AiController::class, 'ementa'])->name('bibliografia.ementa');
 });
 
 // Permite usar Gate::check('user')na view 404
