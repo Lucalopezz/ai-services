@@ -1,10 +1,8 @@
 # USP AI Services (Portal & API)
 
-[![Laravel](https://img.shields.io/badge/Laravel-FF2D20?style=flat-square&logo=laravel&logoColor=white)](https://laravel.com/)
+[![Laravel 13](https://img.shields.io/badge/Laravel-13-FF2D20?style=flat-square&logo=laravel&logoColor=white)](https://laravel.com/)
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://php.net/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-
-Plataforma centralizada de serviços e microsserviços baseados em Inteligência Artificial . O sistema oferece tanto uma **interface web (playground)** para uso direto quanto uma **API RESTful** para integração com sistemas.
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/license/mit)
 
 ---
 
@@ -29,8 +27,6 @@ Os dois serviços usam as mesmas rotas para formulário web e resposta JSON:
 
 GET exibe o formulário; com `Accept: application/json`, informa os campos esperados no POST. POST devolve a tela de resultados ou JSON, conforme o mesmo cabeçalho. O texto de entrada tem limite de 10.000 caracteres.
 
-As rotas exigem autenticação pela sessão da aplicação e proteção CSRF nos POSTs. Para integração JSON, reutilize a sessão autenticada e envie o token CSRF correspondente. Os endpoints de IA estão definidos em `routes/web.php`; `/api/user` é a rota de usuário autenticado com Sanctum.
-
 ```text
 Controller → AiService (cache e estatísticas) → Agente → Laravel AI SDK → LiteLLM
 ```
@@ -43,6 +39,7 @@ Controller → AiService (cache e estatísticas) → Agente → Laravel AI SDK �
 
 * PHP 8.3 ou superior
 * Composer
+* Laravel 13
 * Banco de Dados (MySQL / PostgreSQL / SQLite)
 * Gateway LiteLLM com modelo que aceite saída estruturada via `json_schema`
 
@@ -126,4 +123,4 @@ Falhas de execução retornam `{"success": false, "message": "..."}`:
 
 Entrada inválida retorna 422, com os erros de validação do Laravel; requisições JSON sem autenticação retornam 401. Nas requisições web, falhas de IA retornam ao formulário com um alerta e preservam a entrada.
 
-Consulte a [documentação técnica da integração com o Laravel AI SDK](docs/implementacao-laravel-ai-sdk.md) para entender o código atual, os schemas, o cache, as estatísticas, os fluxos de execução e os testes. O [plano de implementação](docs/plano-implementacao-laravel-ai-sdk.md) registra as etapas e os resultados da migração.
+Consulte a [documentação técnica da integração com o Laravel AI SDK no Laravel 13](docs/implementacao-laravel-ai-sdk.md) para entender as dependências, o código atual, os schemas, o cache, as estatísticas, os fluxos de execução e os testes.

@@ -1,8 +1,8 @@
-# Implementação do Laravel AI SDK
+# Implementação do Laravel AI SDK no Laravel 13
 
-Este documento explica a integração de bibliografia e revisão de ementas com o Laravel AI SDK a partir do código atual do projeto. Ele descreve as responsabilidades dos arquivos, os contratos de dados, a execução pelo LiteLLM, as validações, o cache, as estatísticas e a apresentação dos resultados.
+Este documento explica a integração de bibliografia e revisão de ementas com o Laravel AI SDK na aplicação Laravel 13. Ele descreve as responsabilidades dos arquivos, os contratos de dados, a execução pelo LiteLLM, as validações, o cache, as estatísticas e a apresentação dos resultados.
 
-O [plano de implementação](plano-implementacao-laravel-ai-sdk.md) registra as etapas da migração e suas verificações históricas. Este guia serve como referência para entender e manter a implementação existente.
+Este guia serve como referência para entender e manter a implementação existente e os ajustes de compatibilidade do Laravel 13.
 
 ## Índice
 
@@ -24,7 +24,20 @@ O [plano de implementação](plano-implementacao-laravel-ai-sdk.md) registra as 
 
 ## 1. Visão geral e dependências
 
-A integração usa `laravel/ai` com o requisito `^1.2@stable` em [composer.json](../composer.json). A versão registrada no lockfile da migração é 1.2.0. O projeto exige PHP `^8.3` e utiliza Laravel 12; a validação de 13/10/2026 ocorreu com PHP 8.3.33 e Laravel 12.69.3.
+A integração usa `laravel/ai` com o requisito `^1.2@stable` em [composer.json](../composer.json). O projeto exige PHP `^8.3` e Laravel `^13.0`. As versões registradas em [composer.lock](../composer.lock) são:
+
+| Dependência | Versão instalada |
+| --- | --- |
+| `laravel/framework` | 13.36.0 |
+| `laravel/ai` | 1.2.0 |
+| `laravel/tinker` | 3.0.2 |
+| `phpunit/phpunit` | 12.5.39 |
+| `rap2hpoutre/laravel-log-viewer` | 3.0.0 |
+| `uspdev/laravel-tools` | 1.6.0 |
+
+O upgrade preserva o SDK, os agentes, os prompts, a estrutura de inicialização existente e a configuração de sessão e cache. Em uma instalação existente, `composer install` aplica as versões do lockfile.
+
+O `laravel-tools` 1.6.0 exige Log Viewer `^2.2`, mas essa série não aceita Laravel 13. O requisito `3.0.0 as 2.5.0` instala o Log Viewer 3.0.0 e satisfaz a restrição do pacote USP por meio de um alias do Composer. Essa versão mantém o contrato `Crypt::encrypt()`/`Crypt::decrypt()` dos links das views originais do pacote USP, usadas diretamente sem publicação ou sobrescrita na aplicação. A versão exata gera um aviso esperado em `composer validate`; o alias deve ser reavaliado quando o pacote USP aceitar Log Viewer 3 diretamente, verificando também a compatibilidade dos links.
 
 Cada POST válido executa um fluxo síncrono: a aplicação aguarda o resultado ou uma falha para responder. Uma entrada já processada pode ser atendida pelo cache sem chamar o modelo novamente.
 
@@ -66,6 +79,7 @@ Os agentes utilizados pelos endpoints não implementam `Conversational` nem `Has
 | [app/Services/AiService.php](../app/Services/AiService.php) | Executar agentes, validar resultados, administrar cache e normalizar estatísticas. |
 | [app/Http/Controllers/BibliografiaController.php](../app/Http/Controllers/BibliografiaController.php) | Validar requisições, criar os agentes e apresentar sucesso ou falha nos dois serviços. |
 | [routes/web.php](../routes/web.php) | Registrar os endpoints de bibliografia e ementa com autenticação. |
+| [app/Http/Middleware/VerifyCsrfToken.php](../app/Http/Middleware/VerifyCsrfToken.php) e [config/sanctum.php](../config/sanctum.php) | Aplicar a proteção de origem e token do Laravel 13 por meio de `PreventRequestForgery`. |
 | [resources/views/bibliografia/index.blade.php](../resources/views/bibliografia/index.blade.php) | Apresentar referências revisadas, explicações e confiança. |
 | [resources/views/ementa/index.blade.php](../resources/views/ementa/index.blade.php) | Apresentar nota, análises e textos revisados em português e inglês. |
 | [tests/Feature](../tests/Feature) | Verificar configuração, agentes, serviço e respostas HTTP. |
@@ -449,7 +463,7 @@ As rotas estão em `routes/web.php`, dentro do middleware `auth` e do grupo web:
 | `/bibliografia` | `bibliografia.bibliografia` | `message`: string de até 10.000 caracteres; `standard`: uma das normas disponíveis. |
 | `/ementa` | `bibliografia.ementa` | `mensagem`: string de até 10.000 caracteres. |
 
-Os formulários incluem `@csrf`. Um cliente JSON utiliza a sessão autenticada e o token CSRF correspondente. Esses endpoints não são registrados como rotas da API em `routes/api.php`.
+Os formulários incluem `@csrf`. O middleware local `VerifyCsrfToken` herda `PreventRequestForgery` do Laravel 13: aceita `Sec-Fetch-Site: same-origin` ou um token CSRF válido. Requisições sem origem válida e sem token correspondente à sessão retornam 419 antes da execução do controller. Um cliente JSON sem o cabeçalho de origem utiliza a sessão autenticada e o token CSRF correspondente. Esses endpoints não são registrados como rotas da API em `routes/api.php`.
 
 GET retorna o formulário. Com `Accept: application/json`, `wantsJson()` retorna verdadeiro e o controller responde com instruções dos campos do POST. Esse caminho não executa o agente nem consulta o provider.
 
@@ -589,6 +603,7 @@ Os testes dos controllers usam HTTP simulado. Os fakes nativos do SDK verificam 
 | [EmentaAgentTest.php](../tests/Feature/EmentaAgentTest.php) | Preservação do prompt; estrutura aninhada; versões `pt` e `en`; estados do inglês; notas extremas; metadados; uso dos fakes nativos. |
 | [AiServiceTest.php](../tests/Feature/AiServiceTest.php) | Timeout 60; estatísticas; cache entre instâncias; expiração; retenção zero; separação por entrada, norma, agente, conexão, instruções e schema; provider selecionado; respostas inválidas não armazenadas; limpeza das estatísticas; fakes sem resposta HTTP bruta; contratos JSON dos controllers. |
 | [AiControllerTest.php](../tests/Feature/AiControllerTest.php) | Falhas HTTP, conexão e timeout; configuração ausente; resposta inválida; mensagens sanitizadas; validação da entrada; autenticação; preservação de formulário; renderização web; JSON e acerto de cache; escape de HTML; instruções de GET. |
+| [Laravel13CompatibilityTest.php](../tests/Feature/Laravel13CompatibilityTest.php) | Origem e tokens CSRF válidos e inválidos nos dois endpoints; seleção e download de logs pelos links do tema USP; contrato de criptografia dos links de limpeza/exclusão; acesso administrativo obrigatório. |
 
 Os testes de ementa com inglês presente, parcial e ausente simulam as respostas correspondentes. Eles comprovam que o contrato e a integração aceitam essas estruturas; a avaliação linguística do modelo é uma verificação separada.
 
@@ -603,6 +618,9 @@ vendor/bin/phpunit
 # Executa somente os testes específicos desta integração.
 vendor/bin/phpunit tests/Feature/AiSdkConfigurationTest.php tests/Feature/BibliografiaAgentTest.php tests/Feature/EmentaAgentTest.php tests/Feature/AiServiceTest.php tests/Feature/AiControllerTest.php
 
+# Executa os testes de compatibilidade do Laravel 13 e do visualizador de logs.
+vendor/bin/phpunit --filter Laravel13CompatibilityTest
+
 # Verifica a consistência das dependências e os requisitos do ambiente instalado.
 composer validate --no-check-publish
 composer check-platform-reqs
@@ -613,13 +631,13 @@ php artisan route:list --path=bibliografia -v
 php artisan route:list --path=ementa -v
 ```
 
-Na validação de 13/10/2026, a suíte completa passou com **82 testes e 589 assertions**. A validação do Composer, os requisitos da plataforma e a inicialização também passaram. As rotas mantiveram os middlewares web e de autenticação.
+Na validação do upgrade em 13/10/2026, com PHP 8.3.35, Laravel 13.36.0 e PHPUnit 12.5.39, a suíte completa passou com **93 testes e 622 verificações**. A validação do Composer passou com o aviso esperado sobre a versão exata do Log Viewer; os requisitos da plataforma, a instalação simulada do lockfile e a inicialização das rotas também passaram. As rotas mantiveram os middlewares web e de autenticação.
 
 ### 14.4 Verificações históricas com provider real
 
-O plano registra uma chamada inicial com um schema pequeno e quatro chamadas posteriores pelo `AiService` em 09/10/2026: bibliografia ABNT e APA, ementa com inglês ausente e ementa com inglês presente. As quatro chamadas posteriores somaram 5715 tokens, e as repetições utilizaram cache em memória.
+A migração do SDK registrou uma chamada inicial com um schema pequeno e quatro chamadas posteriores pelo `AiService` em 09/10/2026: bibliografia ABNT e APA, ementa com inglês ausente e ementa com inglês presente. As quatro chamadas posteriores somaram 5715 tokens, e as repetições utilizaram cache em memória.
 
-Esses valores são resultados históricos registrados no plano. A validação automatizada de 13/10/2026 usou simulações e não repetiu chamadas ao provider real. Os testes web comprovam renderização HTTP com dados simulados; não constituem uma execução das telas com um modelo real nem uma avaliação automatizada da qualidade acadêmica.
+Esses valores são resultados históricos anteriores ao upgrade do framework. A validação automatizada do Laravel 13 em 13/10/2026 usou simulações e não repetiu chamadas ao provider real. Os testes web comprovam renderização HTTP com dados simulados; não constituem uma execução das telas com um modelo real nem uma avaliação automatizada da qualidade acadêmica.
 
 ## 15. Orientações para manutenção
 

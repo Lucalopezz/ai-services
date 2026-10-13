@@ -1,8 +1,9 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This Laravel 12 application provides USP bibliography formatting and course-description review through the Laravel AI SDK. PHP dependencies require PHP 8.3 or newer.
+This Laravel 13 application provides USP bibliography formatting and course-description review through the Laravel AI SDK. PHP dependencies require PHP 8.3 or newer.
 
+- `composer.json` and `composer.lock`: Laravel 13, Tinker 3, and PHPUnit 12 dependencies; install the recorded versions with Composer.
 - `app/Http/Controllers/`: request validation and web/JSON responses.
 - `app/Services/AiService.php`: synchronous SDK execution, response validation, caching, and usage statistics.
 - `app/Ai/Agents/`: bibliography and syllabus agents with structured output schemas.
@@ -31,7 +32,7 @@ Always document all new or modified code. Add or update complete PHPDoc/JSDoc bl
 Include concise inline comments explaining implementation decisions, processing steps, business rules, and non-obvious logic inside functions and other code blocks. Explain why the logic exists and how it works without narrating every statement or repeating obvious names and operations. Apply this documentation standard consistently to features, fixes, and refactors, including test code, using the appropriate comment syntax for each language.
 
 ## Testing Guidelines
-Use PHPUnit for unit/feature tests and Laravel Dusk for browser flows. Name files `*Test.php` and methods with a `test` prefix. No coverage threshold is configured. For behavior changes, cover validation, web/JSON responses, provider failures, and caching where relevant. Fake HTTP responses rather than calling paid AI services. Use a separate test database; Dusk creates users and changes permissions.
+Use PHPUnit 12 for unit/feature tests and Laravel Dusk for browser flows. Name files `*Test.php` and methods with a `test` prefix. No coverage threshold is configured. For behavior changes, cover validation, web/JSON responses, provider failures, and caching where relevant. Fake HTTP responses rather than calling paid AI services. Use a separate test database; Dusk creates users and changes permissions. `Laravel13CompatibilityTest` verifies request-origin/CSRF protection and log selection, download, and administrative access.
 
 ## Commit & Pull Request Guidelines
 Recent commits favor `feat:` and `fix:` with short, often Portuguese descriptions. Follow that pattern with a focused subject. PRs should describe the behavior change, link relevant issues, report verification commands/results, and include screenshots for UI changes. Call out configuration or migration requirements.
@@ -41,3 +42,5 @@ At the end of every feature, provide the user with ready-to-run commands in the 
 
 ## Security & Configuration Tips
 Keep credentials in `.env`; never commit real keys. Configure `AI_PROVIDER`, `LITELLM_URL`, `LITELLM_API_KEY`, and `LITELLM_MODEL` through `config/ai.php`. `config/aiService.php` only holds the response-cache retention from `AI_CACHE_RETENTION`. Preserve the existing prompts and authentication on bibliography and syllabus routes.
+
+The local `VerifyCsrfToken` middleware extends Laravel 13's `PreventRequestForgery`; Sanctum references the same framework middleware. Keep the Log Viewer `3.0.0 as 2.5.0` Composer alias until `uspdev/laravel-tools` supports version 3 directly. Version 3.0 preserves the encrypted-link contract of the original USP package views. Do not publish or override package views under `resources/views/vendor` for this upgrade; verify the log links before changing this compatibility dependency.

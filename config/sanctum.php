@@ -60,7 +60,8 @@ return [
     'middleware' => [
         'authenticate_session' => Laravel\Sanctum\Http\Middleware\AuthenticateSession::class,
         'encrypt_cookies' => Illuminate\Cookie\Middleware\EncryptCookies::class,
-        'validate_csrf_token' => Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+        // Usa a proteção de origem e token do Laravel 13 para requisições com sessão.
+        'validate_csrf_token' => Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
     ],
 
 ];

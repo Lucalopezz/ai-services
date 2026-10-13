@@ -18,9 +18,10 @@
         "php": "^8.3",
         "guzzlehttp/guzzle": "^7.0.1",
         "laravel/ai": "^1.2@stable",
-        "laravel/framework": "^12.0",
+        "laravel/framework": "^13.0",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.5",
+        "laravel/tinker": "^3.0",
+        "rap2hpoutre/laravel-log-viewer": "3.0.0 as 2.5.0",
         "spatie/commonmark-highlighter": "^3.0",
         "uspdev/laravel-replicado": "^1.0",
         "uspdev/laravel-tools": "^1.6",
@@ -35,7 +36,7 @@
         "lucascudo/laravel-pt-br-localization": "^3",
         "mockery/mockery": "^1.4.4",
         "nunomaduro/collision": "^8.1",
-        "phpunit/phpunit": "^11.0"
+        "phpunit/phpunit": "^12.0"
     },
     "autoload": {
         "psr-4": {
