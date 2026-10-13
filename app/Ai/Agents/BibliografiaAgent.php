@@ -23,6 +23,13 @@ use RuntimeException;
  */
 class BibliografiaAgent implements Agent, HasStructuredOutput
 {
+    /**
+     * Preserva o método original do SDK com outro nome para que
+     * a implementação personalizada de prompt() possa reutilizá-lo.
+     *
+     * O alias é privado para impedir chamadas externas que
+     * contornem a validação das listas.
+     */
     use Promptable {
         prompt as private promptViaSdk;
     }
@@ -96,6 +103,8 @@ class BibliografiaAgent implements Agent, HasStructuredOutput
             throw new RuntimeException('A resposta de bibliografia não contém dados estruturados.');
         }
 
+        // O JSON Schema valida os tipos, mas não garante que as quatro
+        // listas possuam o mesmo tamanho. Essa verificação é feita aqui.
         $this->validateCorrespondence($response);
 
         return $response;
