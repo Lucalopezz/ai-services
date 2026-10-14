@@ -108,6 +108,12 @@ $ementa = $service->submit(new EmentaAgent, $mensagem);
 
 As estatísticas da última chamada incluem tokens de entrada, saída e total, provider, modelo, identificador, motivo de término, duração, `cached` e `cached_at`. Nos acertos de cache, os tokens são os da geração original e `cached_at` mantém a data dessa geração.
 
+### Sistema de logs
+
+Os logs gerais ficam em `storage/logs/laravel.log`; a captura das chamadas de IA usa `storage/logs/ai-conversations.log`, e a integração com o Replicado usa `storage/logs/replicado.log`. O visualizador está disponível em `/laravel-tools/logs` para usuários autorizados pelo Gate `admin`.
+
+Consulte o [guia do sistema de logs](docs/sistema-de-logs.md) para configurar canais e níveis, acompanhar os arquivos, entender os eventos de IA, usar o visualizador e administrar a retenção.
+
 ### Log de pedidos e retornos da IA
 
 Para inspecionar as chamadas, configure no `.env`:
@@ -136,7 +142,7 @@ O canal dedicado mantém o cabeçalho do Laravel, com data, nível e evento. A i
 | `ai.http.connection_failed` | Falha de conexão com o provider. |
 | `ai.error` | Classe e mensagem interna da falha de execução ou validação. |
 
-Respostas inválidas ou incompletas também ficam registradas. JSON contido em `body` ou `content` é expandido em campos somente para exibição, evitando camadas de aspas escapadas; conteúdo que não seja JSON continua como texto. O formatter normaliza os finais de linha para leitura, preservando sequências literais como `\n` e caminhos com barras. Cabeçalhos de autenticação e configuração de credenciais não são registrados; o arquivo contém os textos completos enviados pelo usuário e recebidos do provider. A captura é desativada por padrão e cobre chamadas feitas por `AiService::submit()`; chamadas diretas a `$agent->prompt()` não entram nesse log. Para encerrar os testes, defina `AI_CONVERSATION_LOG_ENABLED=false` e restaure a retenção desejada do cache. O novo formato vale para registros produzidos após a alteração; registros antigos não são reescritos.
+Respostas inválidas ou incompletas também ficam registradas. JSON contido em `body` ou `content` é expandido em campos somente para exibição, evitando camadas de aspas escapadas; conteúdo que não seja JSON continua como texto. O formatter normaliza os finais de linha para leitura, preservando sequências literais como `\n` e caminhos com barras. Cabeçalhos de autenticação e configuração de credenciais não são registrados; o arquivo contém os textos completos enviados pelo usuário e recebidos do provider. Sem a variável de ambiente, a captura fica desativada; no `.env.example`, `AI_CONVERSATION_LOG_ENABLED=${APP_DEBUG}` faz a captura acompanhar `APP_DEBUG`. A captura cobre chamadas feitas por `AiService::submit()`; chamadas diretas a `$agent->prompt()` não entram nesse log. Para encerrar os testes, defina `AI_CONVERSATION_LOG_ENABLED=false` e restaure a retenção desejada do cache. O novo formato vale para registros produzidos após a alteração; registros antigos não são reescritos.
 
 Os testes automatizados simulam HTTP e verificam a integração e o arquivo de log. A qualidade das respostas reais após simplificar os prompts deve ser avaliada com o gateway e o modelo configurados.
 
