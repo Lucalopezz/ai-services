@@ -13,7 +13,8 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\UserMessage;
 use Laravel\Ai\Promptable;
 use Laravel\Ai\Responses\StructuredAgentResponse;
-use RuntimeException;
+use RuntimeException;A
+use Laravel\Ai\Attributes\Strict;
 
 /**
  * Formata referências com o prompt existente e uma saída estruturada de quatro listas.
@@ -21,6 +22,7 @@ use RuntimeException;
  * A norma é fornecida pelo chamador; o texto a revisar é enviado a prompt().
  * O agente executa chamadas independentes, sem contexto de conversa ou tools.
  */
+#[Strict]
 class BibliografiaAgent implements Agent, HasStructuredOutput
 {
     /**

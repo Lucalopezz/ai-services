@@ -8,6 +8,7 @@ use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
+use Laravel\Ai\Attributes\Strict;
 
 /**
  * Revisa ementas com o prompt existente e uma saída estruturada em português e inglês.
@@ -15,6 +16,7 @@ use Laravel\Ai\Promptable;
  * O texto a revisar é enviado a prompt(). Cada chamada é independente, sem
  * contexto de conversa, tools ou parâmetros adicionais de disciplina e área.
  */
+#[Strict]
 class EmentaAgent implements Agent, HasStructuredOutput
 {
     use Promptable;
