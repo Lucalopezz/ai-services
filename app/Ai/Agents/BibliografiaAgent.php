@@ -13,7 +13,7 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\UserMessage;
 use Laravel\Ai\Promptable;
 use Laravel\Ai\Responses\StructuredAgentResponse;
-use RuntimeException;A
+use RuntimeException;
 use Laravel\Ai\Attributes\Strict;
 
 /**
