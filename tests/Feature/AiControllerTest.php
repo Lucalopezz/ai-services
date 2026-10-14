@@ -135,18 +135,21 @@ class AiControllerTest extends TestCase
     }
 
     /**
-     * Confere a mensagem pública para JSON inválido ou campos fora do contrato esperado.
+     * Confere a mensagem pública para uma geração interrompida, sem expor seu conteúdo.
      *
      * @param string $route Nome da rota autenticada a testar.
      * @return void
      */
     #[DataProvider('aiRoutes')]
-    public function test_invalid_model_output_returns_a_json_error(string $route): void
+    public function test_incomplete_model_output_returns_a_json_error(string $route): void
     {
+        // Um resultado decodificável isola a rejeição por término incompleto nos dois agentes.
+        $result = self::resultFor($route);
+        $result['private_details'] = 'private-invalid-output';
         Http::fake(['*' => Http::response([
             'choices' => [[
-                'finish_reason' => 'stop',
-                'message' => ['role' => 'assistant', 'content' => 'private-invalid-output'],
+                'finish_reason' => 'length',
+                'message' => ['role' => 'assistant', 'content' => json_encode($result)],
             ]],
         ])]);
 

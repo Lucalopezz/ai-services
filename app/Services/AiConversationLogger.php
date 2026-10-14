@@ -54,10 +54,10 @@ class AiConversationLogger
     }
 
     /**
-     * Registra o resultado validado, distinguindo a geração do reaproveitamento de cache.
+     * Registra o resultado recebido, distinguindo a geração do reaproveitamento de cache.
      * Nos acertos de cache, os tokens e cached_at continuam sendo os da geração original.
      *
-     * @param array<string, mixed> $result Dados estruturados validados pelo serviço.
+     * @param array<string, mixed> $result Dados estruturados devolvidos pelo agente ou pelo cache.
      * @param array<string, mixed> $statistics Estatísticas da chamada, incluindo o campo cached.
      * @return void
      */

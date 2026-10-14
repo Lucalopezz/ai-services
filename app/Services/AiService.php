@@ -37,16 +37,17 @@ class AiService
     }
 
     /**
-     * Executa um agente síncrono, valida sua resposta e reaproveita resultados em cache.
+     * Executa um agente síncrono, confere o término e reaproveita resultados em cache.
+     * O provider recebe o schema do agente; os campos retornados não são revalidados aqui.
      * Quando habilitado, registra entrada, tráfego HTTP, saída e falhas no canal da IA.
      * A captura do log acompanha o processamento do cache e da geração. Os eventos
-     * HTTP registram o tráfego do SDK, e o serviço registra o resultado já validado
+     * HTTP registram o tráfego do SDK, e o serviço registra o resultado recebido
      * ou a exceção, encerrando o contexto antes de devolver o controle ao chamador.
      *
      * @param Agent $agent Agente que também implementa HasStructuredOutput.
      * @param string $input Texto fornecido pelo usuário, separado das instruções.
-     * @return array<string, mixed> Dados estruturados esperados pelo agente.
-     * @throws RuntimeException Quando o agente ou a resposta não respeitar o contrato.
+     * @return array<string, mixed> Dados estruturados devolvidos pelo agente ou recuperados do cache.
+     * @throws RuntimeException Quando faltar saída estruturada, o término for incompleto ou o agente rejeitar a resposta.
      * @throws \JsonException Quando as entradas da chave de cache não puderem ser serializadas.
      * @throws \Laravel\Ai\Exceptions\AiException Em caso de falha de execução pelo SDK.
      * @throws \Illuminate\Http\Client\RequestException Em caso de erro HTTP do provider.
@@ -82,7 +83,7 @@ class AiService
         ], JSON_THROW_ON_ERROR));
 
         $wasCached = true;
-        $generate = function () use ($agent, $input, $provider, $model, $schema, &$wasCached): array {
+        $generate = function () use ($agent, $input, $provider, $model, &$wasCached): array {
             $wasCached = false;
             $response = $agent->prompt($input, provider: $provider, model: $model, timeout: 60);
 
@@ -95,13 +96,9 @@ class AiService
                 throw new RuntimeException('Resposta da IA não foi concluída normalmente.');
             }
 
-            $result = $response->toArray();
-            // O SDK decodifica JSON, mas uma resposta decodificável ainda pode
-            // omitir campos ou ter tipos incorretos. Valide antes de armazenar.
-            $this->validateValue($result, $schema);
-
+            // Confia nos campos retornados pelo agente, sem repetir a validação do schema.
             return [
-                'result' => $result,
+                'result' => $response->toArray(),
                 'statistics' => [
                     'usage' => [
                         'prompt_tokens' => $response->usage->inputTokens,
@@ -119,7 +116,7 @@ class AiService
         };
 
         // Resolve o logger pelo container para compartilhar a mesma instância com os
-        // listeners HTTP. O contexto fica ativo durante cache, SDK e validação.
+        // listeners HTTP. O contexto fica ativo durante cache e execução do agente.
         // As mensagens abaixo descrevem a entrada da aplicação; os listeners registram
         // separadamente o payload real construído pelo SDK, com suas opções e schema.
         $logger = app(AiConversationLogger::class);
@@ -169,60 +166,9 @@ class AiService
     }
 
     /**
-     * Confere os tipos e restrições utilizados pelos schemas atuais, inclusive campos aninhados.
-     *
-     * @param mixed $value Valor decodificado da resposta a verificar.
-     * @param array<string, mixed> $schema Definição serializada do campo no schema do agente.
-     * @param string $path Caminho do campo usado na mensagem de erro, sem expor seu conteúdo.
-     * @return void
-     * @throws RuntimeException Quando o valor não corresponder ao schema ou usar um tipo não suportado.
-     */
-    private function validateValue(mixed $value, array $schema, string $path = 'resposta'): void
-    {
-        // Este fluxo usa objetos, listas, strings e inteiros. Outros tipos devem
-        // ser tratados explicitamente antes de ampliar os agentes do projeto.
-        $validType = match ($schema['type'] ?? null) {
-            'object' => is_array($value) && ($value === [] || ! array_is_list($value)),
-            'array' => is_array($value) && array_is_list($value),
-            'string' => is_string($value),
-            'integer' => is_int($value),
-            default => false,
-        };
-
-        if (! $validType
-            || (isset($schema['enum']) && ! in_array($value, $schema['enum'], true))
-            || (isset($schema['minimum']) && $value < $schema['minimum'])
-            || (isset($schema['maximum']) && $value > $schema['maximum'])) {
-            throw new RuntimeException("O campo '{$path}' não corresponde ao schema da resposta.");
-        }
-
-        if ($schema['type'] === 'object') {
-            $properties = $schema['properties'] ?? [];
-            foreach ($schema['required'] ?? [] as $field) {
-                if (! array_key_exists($field, $value)) {
-                    throw new RuntimeException("O campo '{$path}.{$field}' é obrigatório na resposta.");
-                }
-            }
-            if (($schema['additionalProperties'] ?? true) === false
-                && array_diff(array_keys($value), array_keys($properties)) !== []) {
-                throw new RuntimeException("O campo '{$path}' contém propriedades fora do schema.");
-            }
-            foreach ($properties as $field => $definition) {
-                if (array_key_exists($field, $value)) {
-                    $this->validateValue($value[$field], $definition, "{$path}.{$field}");
-                }
-            }
-        } elseif ($schema['type'] === 'array') {
-            foreach ($value as $index => $item) {
-                $this->validateValue($item, $schema['items'], "{$path}.{$index}");
-            }
-        }
-    }
-
-    /**
      * Retorna uso, identificação, duração e estado do cache da última chamada bem-sucedida.
      *
-     * @return array<string, mixed>|null Estatísticas normalizadas, ou null antes de uma resposta válida.
+     * @return array<string, mixed>|null Estatísticas normalizadas, ou null se a última chamada não tiver sucesso ou ainda não houver execução.
      */
     public function statistics(): ?array
     {

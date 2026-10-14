@@ -20,7 +20,7 @@ use Tests\TestCase;
 use function Laravel\Ai\agent;
 
 /**
- * Verifica execução pelo SDK, isolamento e expiração do cache e rejeição de respostas inválidas.
+ * Verifica execução pelo SDK, cache dos dados recebidos e rejeição de gerações incompletas.
  *
  * As respostas HTTP são simuladas e o cache usa memória isolada do ambiente real.
  */
@@ -274,41 +274,33 @@ class AiServiceTest extends TestCase
     }
 
     /**
-     * Confere que uma resposta inválida não é armazenada e uma repetição pode se recuperar.
+     * Confere que o serviço aceita e armazena os campos recebidos sem revalidar o schema.
      *
      * @param string $kind Nome do agente a executar no caso de teste.
-     * @param array<string, mixed> $invalid Resultado com uma violação do contrato.
-     * @param string $field Campo que deve aparecer na mensagem de erro.
+     * @param array<string, mixed> $result Dados simulados que não atendem ao schema enviado.
      * @return void
      */
-    #[DataProvider('invalidResults')]
-    public function test_invalid_responses_are_not_cached(string $kind, array $invalid, string $field): void
+    #[DataProvider('providerResults')]
+    public function test_provider_results_are_returned_and_cached_without_schema_validation(string $kind, array $result): void
     {
         $agent = $kind === 'bibliografia' ? new BibliografiaAgent('APA 7th Edition') : new EmentaAgent;
-        $valid = $kind === 'bibliografia' ? self::bibliographyResult() : self::ementaResult();
-        Http::fake(['*' => Http::sequence()->push(self::httpResult($invalid))->push(self::httpResult($valid))]);
+        Http::fake(['*' => Http::response(self::httpResult($result))]);
         $service = new AiService;
 
-        try {
-            $service->submit($agent, 'Texto A');
-            $this->fail('A resposta inválida deveria ter sido rejeitada.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString($field, $exception->getMessage());
-        }
-        $this->assertNull($service->statistics());
-        $this->assertSame($valid, $service->submit($agent, 'Texto A'));
+        // O cache preserva os mesmos dados aceitos na geração, sem corrigir tipos ou campos.
+        $this->assertSame($result, $service->submit($agent, 'Texto A'));
         $this->assertFalse($service->statistics()['cached']);
-        $this->assertSame($valid, $service->submit($agent, 'Texto A'));
+        $this->assertSame($result, $service->submit($agent, 'Texto A'));
         $this->assertTrue($service->statistics()['cached']);
-        Http::assertSentCount(2);
+        Http::assertSentCount(1);
     }
 
     /**
-     * Prepara violações de campos aninhados, tipos, limites e correspondência das listas.
+     * Prepara campos fora do schema para comprovar a confiança nos dados do provider.
      *
-     * @return array<string, array{string, array<string, mixed>, string}> Agente, resultado e campo inválido.
+     * @return array<string, array{string, array<string, mixed>}> Agente e dados retornados pelo provider.
      */
-    public static function invalidResults(): array
+    public static function providerResults(): array
     {
         $bibliography = self::bibliographyResult();
         $ementa = self::ementaResult();
@@ -316,29 +308,28 @@ class AiServiceTest extends TestCase
         unset($missingEnglish['texto_revisado']['ementa']['en']);
 
         return [
-            'unmatched lists' => ['bibliografia', array_replace($bibliography, ['explicacoes' => []]), 'explicacoes'],
-            'confidence too high' => ['bibliografia', array_replace($bibliography, ['confiancas' => [101]]), 'confiancas.0'],
-            'confidence too low' => ['bibliografia', array_replace($bibliography, ['confiancas' => [-1]]), 'confiancas.0'],
-            'confidence string' => ['bibliografia', array_replace($bibliography, ['confiancas' => ['90']]), 'confiancas.0'],
-            'reference type' => ['bibliografia', array_replace($bibliography, ['referencias' => [42]]), 'referencias.0'],
-            'dedalus title missing' => ['bibliografia', array_replace($bibliography, ['busca_dedalus' => [['autor' => 'Autor']]]), 'busca_dedalus.0.titulo'],
-            'score too high' => ['ementa', array_replace_recursive($ementa, ['score' => ['valor' => 101]]), 'score.valor'],
-            'score fractional' => ['ementa', array_replace_recursive($ementa, ['score' => ['valor' => 90.5]]), 'score.valor'],
-            'unknown English status' => ['ementa', array_replace_recursive($ementa, ['explicacoes' => ['en' => ['status' => 'outro']]]), 'explicacoes.en.status'],
-            'English text missing' => ['ementa', $missingEnglish, 'texto_revisado.ementa.en'],
-            'unexpected field' => ['ementa', [...$ementa, 'extra' => 'fora do contrato'], 'resposta'],
+            'confidence too high' => ['bibliografia', array_replace($bibliography, ['confiancas' => [101]])],
+            'confidence too low' => ['bibliografia', array_replace($bibliography, ['confiancas' => [-1]])],
+            'confidence string' => ['bibliografia', array_replace($bibliography, ['confiancas' => ['90']])],
+            'reference type' => ['bibliografia', array_replace($bibliography, ['referencias' => [42]])],
+            'dedalus title missing' => ['bibliografia', array_replace($bibliography, ['busca_dedalus' => [['autor' => 'Autor']]])],
+            'score too high' => ['ementa', array_replace_recursive($ementa, ['score' => ['valor' => 101]])],
+            'score fractional' => ['ementa', array_replace_recursive($ementa, ['score' => ['valor' => 90.5]])],
+            'unknown English status' => ['ementa', array_replace_recursive($ementa, ['explicacoes' => ['en' => ['status' => 'outro']]])],
+            'English text missing' => ['ementa', $missingEnglish],
+            'unexpected field' => ['ementa', [...$ementa, 'extra' => 'fora do contrato']],
         ];
     }
 
     /**
-     * Confere rejeição de JSON inválido ou término incompleto, sem reaproveitar o resultado.
+     * Confere rejeição de término incompleto, sem reaproveitar o resultado.
      *
      * @param string $content Conteúdo textual simulado pelo provider.
      * @param string $finishReason Motivo de término da resposta simulada.
      * @return void
      */
     #[DataProvider('invalidCompletions')]
-    public function test_invalid_json_and_incomplete_responses_are_not_cached(string $content, string $finishReason): void
+    public function test_incomplete_responses_are_not_cached(string $content, string $finishReason): void
     {
         $invalid = self::httpResult(self::ementaResult());
         $invalid['choices'][0]['message']['content'] = $content;
@@ -359,14 +350,13 @@ class AiServiceTest extends TestCase
     }
 
     /**
-     * Fornece texto que não é JSON e respostas interrompidas antes da conclusão normal.
+     * Fornece respostas interrompidas antes da conclusão normal.
      *
      * @return array<string, array{string, string}> Conteúdo e motivo de término simulados.
      */
     public static function invalidCompletions(): array
     {
         return [
-            'invalid JSON' => ['Resposta sem JSON.', 'stop'],
             'truncated output' => [json_encode(self::ementaResult()), 'length'],
             'filtered output' => [json_encode(self::ementaResult()), 'content_filter'],
         ];

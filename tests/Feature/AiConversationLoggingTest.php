@@ -77,7 +77,7 @@ class AiConversationLoggingTest extends TestCase
     }
 
     /**
-     * Confere mensagens, schema HTTP real, retorno bruto e resultado validado no arquivo.
+     * Confere mensagens, schema HTTP real, retorno bruto e resultado recebido no arquivo.
      *
      * @return void
      */
@@ -234,7 +234,7 @@ class AiConversationLoggingTest extends TestCase
         }
 
         // A falha continua visível ao chamador. O corpo deve ter sido registrado pelo
-        // evento HTTP antes de o SDK ou o validador rejeitar a resposta.
+        // evento HTTP antes de o SDK, o serviço ou o agente rejeitar a resposta.
         $this->assertNotNull($failure);
         $this->assertNull($service->statistics());
         $records = $this->records();
@@ -255,20 +255,18 @@ class AiConversationLoggingTest extends TestCase
     }
 
     /**
-     * Fornece falhas do provider, JSON inválido, interrupção e violações do contrato.
+     * Fornece falhas do provider, JSON inválido, interrupção e listas sem correspondência.
      *
      * @return array<string, array{array<string, mixed>|string, int}> Corpo e status HTTP simulados.
      */
     public static function failedResponses(): array
     {
         // Cobre rejeições em etapas diferentes: transporte HTTP, leitura de JSON,
-        // término da geração, tipos/limites do schema e correspondência das listas.
+        // término da geração e correspondência das listas exigida pelo agente.
         $invalidJson = self::httpResult();
         $invalidJson['choices'][0]['message']['content'] = 'Resposta sem JSON.';
         $incomplete = self::httpResult();
         $incomplete['choices'][0]['finish_reason'] = 'length';
-        $invalidType = self::httpResult();
-        $invalidType['choices'][0]['message']['content'] = json_encode([...self::bibliographyResult(), 'confiancas' => [101]]);
         $unmatchedLists = self::httpResult();
         $unmatchedLists['choices'][0]['message']['content'] = json_encode([...self::bibliographyResult(), 'explicacoes' => []]);
 
@@ -277,7 +275,6 @@ class AiConversationLoggingTest extends TestCase
             'malformed HTTP body' => ['Resposta HTTP sem JSON.', 200],
             'invalid completion JSON' => [$invalidJson, 200],
             'incomplete completion' => [$incomplete, 200],
-            'schema violation' => [$invalidType, 200],
             'unmatched bibliography lists' => [$unmatchedLists, 200],
         ];
     }
